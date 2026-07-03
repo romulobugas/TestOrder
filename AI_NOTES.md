@@ -127,3 +127,47 @@ Codigo de producao **nao precisou de ajuste** durante a fatia de testes T014–T
 - **Sem RabbitMQ/Kafka/Redis** neste modulo — outbox local em `order_processing_events` para consumo futuro pelo Node.
 - **`inventory_units`** como fonte de verdade da reserva (nao decremento cego em `stock_quantity`).
 - Pedidos historicos do seed (modulo 001) **nao** consomem unidades retroativamente.
+
+## Modulo 003 - Faturamento por periodo
+
+**Status: concluido** (T001–T018).
+
+### O que foi implementado
+
+- `GET /api/revenue/daily?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` em `RevenueController.cs` (rota `api/revenue`).
+- `RevenueQueries.cs`: uma unica consulta Dapper agregada (`JOIN orders/order_items`, `WHERE status='created'`, `GROUP BY DATE(created_at)`), sem N+1.
+- **Nenhuma migration, entidade EF ou alteracao de schema** — leitura pura sobre `orders`/`order_items` existentes.
+- Validacoes 400: `startDate`/`endDate` ausentes ou vazios, formato invalido (`DateOnly.TryParseExact` estrito `yyyy-MM-dd`), `startDate > endDate`, intervalo > 366 dias.
+- Intervalo **semiaberto em UTC** na SQL (`created_at >= StartUtc AND created_at < EndExclusiveUtc`) para incluir corretamente o dia final sem depender de fracao de segundo.
+- Dias sem pedido preenchidos com `revenue=0`/`orderCount=0` **em C#** (iteracao de `startDate` a `endDate`), nao com CTE recursiva/serie de datas em SQL.
+- `totalRevenue`/`totalOrders` somados a partir da lista final de `days` (ja com zeros), sem segunda query.
+- Datas na resposta como **`string` `yyyy-MM-dd`** (nao `DateTime`) para nao colidir com o `UtcDateTimeJsonConverter` global usado em `createdAt`.
+
+### Validacao real
+
+| Comando | Resultado |
+| --- | --- |
+| `dotnet build TestOrder.slnx` | PASS |
+| `.\scripts\test.ps1` | PASS — **46/46** (32 dos modulos 001/002 + 14 casos novos em 10 metodos de teste do modulo 003) |
+| `dotnet test TestOrder.slnx` | PASS — **46/46** |
+
+Codigo de producao (`RevenueController.cs`/`RevenueQueries.cs`) **nao precisou de ajuste** apos os testes, exceto uma correcao de tipo: `COUNT(DISTINCT o.id)` retorna `BIGINT` no MySQL/MySqlConnector, entao o record interno `RevenueDayRow` usa `long OrderCount` (com cast para `int` apenas na resposta), nao `int` direto — o Dapper falhava ao materializar o registro com o tipo errado.
+
+### Onde a IA ajudou
+
+- **Spec Kit**: `/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, `/speckit-analyze` para gerar e revisar spec/plan/tasks antes do implement.
+- **`/speckit-analyze`** identificou 3 lacunas de cobertura antes do implement: caso de borda `startDate == endDate` (dia unico), caso positivo obrigatorio de 366 dias (estava descrito como opcional em uma unica task) e ausencia de verificacao automatizada de que o endpoint tambem agrega pedidos do seed (nao so dados de teste isolados). As tres foram endereçadas na implementacao antes de escrever os testes.
+- Prompt unico cobrindo T001–T018 (build/test/docs), respeitando fases e arquivos permitidos.
+
+### Onde a IA foi limitada ou corrigida
+
+- Erro de materializacao do Dapper (`COUNT(DISTINCT)` como `BIGINT`) so apareceu ao rodar os testes reais contra MySQL — corrigido trocando `int` por `long` no row interno.
+- Evitar CTE recursiva/serie de datas em SQL para os dias zerados — decisao deliberada de preencher em C#, mantendo a query SQL simples e legivel.
+- Total de testes do modulo passou de 9 (estimativa inicial do `tasks.md`) para **10 metodos de teste** apos incorporar os 3 casos extras do `/speckit-analyze` (dia unico, borda de 366/367 dias obrigatoria, agregacao do seed) — numero real refletido em `tasks.md`, `quickstart.md` e aqui.
+
+### Decisoes manuais
+
+- **MVC**, sem Minimal APIs — `RevenueController` novo, mesmo padrao de `OrdersController`.
+- **Dapper** para a agregacao; nenhuma entidade EF, repository, service generico, interface, MediatR, CQRS ou AutoMapper.
+- Dados de teste deterministicos inseridos via SQL direto (produto e datas exclusivos por teste) para os testes de agregacao; teste de regressao usa um intervalo amplo cobrindo o periodo real do seed (`2025-07-02` a `2026-07-01`) para confirmar que pedidos historicos tambem sao contabilizados.
+- `OrdersController.cs`, `CreateOrderCommands.cs`, `ProductsController.cs`, `Program.cs`, `TestOrderDbContext.cs` e migrations **nao** foram tocados.
