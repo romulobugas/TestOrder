@@ -1,12 +1,10 @@
 namespace TestOrder.Api.Data.Entities;
 
-public class Order
+public class InventoryUnit
 {
     public long Id { get; set; }
 
-    public DateTime CreatedAt { get; set; }
+    public int ProductId { get; set; }
 
     public string Status { get; set; } = string.Empty;
-
-    public string? CustomerName { get; set; }
 }

@@ -20,7 +20,7 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 ## Ordem de apresentacao planejada
 
 1. Base, modelo e listagem de pedidos. **(concluido)**
-2. Criacao de pedidos com reserva concorrente.
+2. Criacao de pedidos com reserva concorrente. **(concluido)**
 3. Faturamento por periodo.
 4. Tela React.
 5. Microservico Node e outbox.
@@ -47,6 +47,11 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 | 001 | `src/TestOrder.Api/Controllers/OrdersQueries.cs` | SQL da listagem (3 queries, total por subselect) |
 | 001 | `src/TestOrder.Api/Json/UtcDateTimeJsonConverter.cs` | `createdAt` em UTC com sufixo `Z` |
 | 001 | `tests/TestOrder.Api.Tests/Integration/` | Fixture Testcontainers, factory, 17 testes |
+| 002 | `src/TestOrder.Api/Controllers/OrdersController.cs` | `POST /api/orders`, validacao 400 pre-transacao |
+| 002 | `src/TestOrder.Api/Controllers/CreateOrderCommands.cs` | Transacao Dapper: SKIP LOCKED, outbox, comentarios de concorrencia |
+| 002 | `src/TestOrder.Api/Data/Seed/InventoryUnitsBackfill.cs` | Backfill idempotente ~237k unidades em dev |
+| 002 | `src/TestOrder.Api/Migrations/20260703184137_AddInventoryAndOutbox.cs` | Schema: inventory_units, reservas, outbox, customer_name |
+| 002 | `tests/TestOrder.Api.Tests/Integration/CreateOrderEndpointTests.cs` | 15 testes POST + regressao smoke (32 total na suite) |
 
 ## Modulo 001 — roteiro de demo (5–10 min)
 
@@ -84,6 +89,72 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 | `createdAt` com sufixo `Z` | PASS | `UtcDateTimeJsonConverter` + testes |
 | Paginacao sem IDs duplicados | PASS | Teste + desempate `id DESC` |
 | Primeira pagina < 2s (demo local) | PASS | Observacional com seed 5k |
+
+## Modulo 002 — roteiro de demo (5–10 min)
+
+### Mensagem para a sala
+
+Inspirado no artigo da Shopify sobre reservas por linhas bloqueaveis, mas adaptado de forma **pequena e explicavel** com MySQL 8: uma linha em `inventory_units` = uma unidade vendavel. A reserva usa `SELECT ... FOR UPDATE SKIP LOCKED` — threads concorrentes pegam unidades diferentes sem fila externa (sem Rabbit/Kafka/Redis). Tudo fica visivel em SQL ao lado do controller.
+
+### Passos
+
+1. **Subir ambiente**: `.\scripts\dev-up.ps1` — na primeira execucao apos migration 002, aguardar backfill (~237k unidades em dev).
+2. **POST sucesso (201)**:
+   ```powershell
+   curl -s -X POST http://localhost:5069/api/orders -H "Content-Type: application/json" -d "{\"customerName\":\"Demo\",\"items\":[{\"productId\":1,\"quantity\":2}]}"
+   ```
+   Apontar `createdAt` com `Z`, `total` = soma dos itens, header `Location`.
+3. **POST invalido (400)** — items vazio:
+   ```powershell
+   curl -s -w "`n%{http_code}" -X POST http://localhost:5069/api/orders -H "Content-Type: application/json" -d "{\"items\":[]}"
+   ```
+4. **POST estoque insuficiente (409)**:
+   ```powershell
+   curl -s -w "`n%{http_code}" -X POST http://localhost:5069/api/orders -H "Content-Type: application/json" -d "{\"items\":[{\"productId\":1,\"quantity\":999999999}]}"
+   ```
+5. **SQL — reservas** (substituir `{ORDER_ID}`):
+   ```sql
+   SELECT COUNT(*) FROM order_reservation_units WHERE order_id = {ORDER_ID};
+   SELECT status, COUNT(*) FROM inventory_units GROUP BY status;
+   ```
+6. **SQL — outbox pending**:
+   ```sql
+   SELECT event_type, status, payload FROM order_processing_events WHERE order_id = {ORDER_ID};
+   -- OrderCreated, pending, {"orderId":...}
+   ```
+7. **GET confirma pedido**: `curl -s http://localhost:5069/api/orders/{ORDER_ID}` — mesmo shape do modulo 001.
+8. **Concorrencia (teste automatizado)**: 10 POSTs paralelos, 5 unidades → 5×201 + 5×409, zero overbooking.
+9. **Testes**: `.\scripts\test.ps1` — **32/32**.
+
+### Trecho SQL central (CreateOrderCommands.cs)
+
+```sql
+SELECT id FROM inventory_units
+WHERE product_id = @ProductId AND status = 'available'
+ORDER BY id
+LIMIT @Quantity
+FOR UPDATE SKIP LOCKED
+```
+
+Itens processados em ordem **`product_id ASC`** dentro da transacao **READ COMMITTED** para reduzir deadlock.
+
+## Validacoes — Modulo 002
+
+| Validacao | Status | Evidencia |
+| --- | --- | --- |
+| `dotnet build TestOrder.slnx` | PASS | Build sem erros |
+| `.\scripts\test.ps1` | PASS | 32/32 testes |
+| `dotnet test TestOrder.slnx` | PASS | Idem |
+| Migration `20260703184137_AddInventoryAndOutbox` | PASS | Aplicada no startup |
+| Backfill idempotente | PASS | ~237k `inventory_units` em dev; segunda subida nao duplica |
+| `POST /api/orders` valido | PASS | 201 + Location + OrderResponse |
+| `POST` items vazio | PASS | 400 + error |
+| `POST` productId duplicado | PASS | 400 + error |
+| `POST` qty > estoque | PASS | 409 + rollback total |
+| Outbox `pending` | PASS | `order_processing_events` na mesma transacao |
+| Concorrencia 5/5 | PASS | Teste `CreateOrder_ConcurrentRequests_DoNotOverbook` |
+| GET modulo 001 intacto | PASS | products, orders, orders/{id} → 200 |
+| `products.stock_quantity` nao decrementado | PASS | Legado/indicador apenas |
 
 ### Comandos de validacao final
 

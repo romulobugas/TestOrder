@@ -19,3 +19,9 @@ public sealed record PagedOrdersDto(
     IReadOnlyList<OrderDto> Items);
 
 public sealed record ErrorDto(string Error);
+
+public sealed record CreateOrderRequestDto(
+    string? CustomerName,
+    IReadOnlyList<CreateOrderItemRequestDto>? Items);
+
+public sealed record CreateOrderItemRequestDto(int ProductId, int Quantity);

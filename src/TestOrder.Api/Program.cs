@@ -27,6 +27,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<TestOrderDbContext>();
     await db.Database.MigrateAsync();
     await DatabaseSeeder.SeedAsync(db, builder.Configuration);
+    await InventoryUnitsBackfill.RunAsync(db);
 }
 
 app.UseAuthorization();
