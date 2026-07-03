@@ -93,6 +93,19 @@ if (-not (Test-Path $WebNodeModules)) {
     }
 }
 
+$WorkerDir = Join-Path $RepoRoot 'src\TestOrder.OrderProcessor'
+$WorkerNodeModules = Join-Path $WorkerDir 'node_modules'
+if (-not (Test-Path $WorkerNodeModules)) {
+    Write-Host 'Worker dependencies not found - running npm install (first run)...'
+    Push-Location $WorkerDir
+    npm install
+    $npmInstallExitCode = $LASTEXITCODE
+    Pop-Location
+    if ($npmInstallExitCode -ne 0) {
+        throw 'npm install failed.'
+    }
+}
+
 if ($ApiPortInUse) {
     Write-Warning 'Port 5069 is still in use - the API window may fail to bind.'
 }
@@ -100,11 +113,12 @@ if ($WebPortInUse) {
     Write-Warning 'Port 5173 is already in use - Vite will pick another port (check the "TestOrder - Web" window).'
 }
 
-Write-Host 'Opening service windows (MySQL logs, API, Web)...'
+Write-Host 'Opening service windows (MySQL logs, API, Web, Worker)...'
 
 Start-ServiceWindow -Title 'TestOrder - MySQL' -Command 'docker compose logs -f mysql'
 Start-ServiceWindow -Title 'TestOrder - API' -Command 'dotnet run --project src\TestOrder.Api'
 Start-ServiceWindow -Title 'TestOrder - Web' -Command 'npm run dev' -WorkingDirectory $WebDir
+Start-ServiceWindow -Title 'TestOrder - Worker' -Command 'node index.js' -WorkingDirectory $WorkerDir
 
 Write-Host ''
 Write-Host 'Services starting in separate windows:'
@@ -115,5 +129,6 @@ if ($WebPortInUse) {
     Write-Host '  Frontend: http://localhost:5173'
 }
 Write-Host '  MySQL:    localhost:3306'
+Write-Host '  Worker:   see "TestOrder - Worker" window'
 Write-Host ''
 Write-Host 'Close each window (or Ctrl+C inside it) to stop that service.'

@@ -1,0 +1,14 @@
+{
+  "name": "testorder-order-processor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Worker Node que processa eventos pending do outbox order_processing_events (Modulo 005).",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0"
+  }
+}
