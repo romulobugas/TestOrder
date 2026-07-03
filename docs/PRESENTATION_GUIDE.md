@@ -14,6 +14,7 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 - **EF Core + Dapper**: EF Core para modelo, schema e seed; Dapper para consultas e pontos onde SQL explicito ajuda performance e clareza.
 - **Microservico Node sem fila externa**: quando entrar, ele processara uma tabela de outbox/fila no proprio MySQL, evitando RabbitMQ/Kafka/Redis.
 - **Spec Kit por modulo**: cada modulo tera spec, plano, tarefas, implementacao e revisao.
+- **IA com trilha auditavel**: o repositorio inclui Spec Kit para Cursor, Claude, Codex e Antigravity, alem de `AI_NOTES.md` e `docs/SPECKIT_SETUP.md`.
 
 ## Ordem de apresentacao planejada
 
@@ -27,6 +28,7 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 ## Referencias externas
 
 - Shopify Engineering: https://shopify.engineering/scaling-inventory-reservations
+- GitHub Spec Kit: https://github.com/github/spec-kit
 
 ## Referencias de codigo
 
@@ -34,6 +36,7 @@ Preencher ao final de cada modulo.
 
 | Modulo | Arquivo | O que explicar |
 | --- | --- | --- |
+| Setup | `docs/SPECKIT_SETUP.md` | Como a IA foi organizada para trabalhar por especificacao e modulo |
 | 001 | A definir | Modelo, seed e listagem paginada |
 
 ## Validacoes

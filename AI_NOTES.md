@@ -9,6 +9,8 @@ Este arquivo sera atualizado a cada modulo. O objetivo nao e vender que a IA fez
 - Minimal APIs foram evitadas por preferencia de organizacao e apresentacao.
 - O fluxo de reserva foi inspirado no artigo da Shopify sobre MySQL 8 `FOR UPDATE SKIP LOCKED`, mas sera aplicado de forma menor e didatica.
 - O projeto sera construido por modulos com Spec Kit para manter rastreabilidade: spec, plano, tarefas, implementacao e revisao.
+- O Spec Kit foi instalado no repositorio para Cursor, Claude Code, Codex CLI e Antigravity. Cursor ficou como integracao default.
+- Codex e Antigravity compartilham `.agents/skills` nesta versao do Spec Kit; isso foi documentado em `docs/SPECKIT_SETUP.md`.
 
 ## Modulo 001 - Base e listagem de pedidos
 
