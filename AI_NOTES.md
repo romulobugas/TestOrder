@@ -80,3 +80,50 @@ Parar a API manualmente antes de `dotnet build` ou `dotnet test` se ela estiver 
 - Ordenacao paginada com desempate por `id` (muitos pedidos com mesmo `created_at` no seed).
 - Injecao de config em testes via env vars + `appsettings.Test.json` (limitacao do `WebApplicationFactory` com top-level `Program.cs`).
 - Serializacao UTC explicita para cumprir contrato ISO 8601 com `Z`.
+
+## Modulo 002 - Criacao de pedido com reservas concorrentes
+
+**Status: concluido** (T001–T025).
+
+### O que foi implementado
+
+- `POST /api/orders` com reserva transacional de estoque via `inventory_units`.
+- Migration **`20260703184137_AddInventoryAndOutbox`**: coluna `orders.customer_name`, tabelas `inventory_units`, `order_reservation_units`, `order_processing_events`.
+- Backfill idempotente em `InventoryUnitsBackfill.cs` (guard `AnyAsync()`); primeira subida local materializou **~237k** linhas `available` em dev.
+- Transacao critica em **`CreateOrderCommands.cs`** (Dapper/MySqlConnector): `READ COMMITTED`, itens ordenados por `productId ASC`, reserva com `SELECT ... FOR UPDATE SKIP LOCKED`.
+- Na mesma transacao: `orders`, `order_items`, update `inventory_units` → `reserved`, `order_reservation_units`, `order_processing_events` (`OrderCreated`, `pending`).
+- **`products.stock_quantity`** permanece legado/indicador — **nao** e decrementado no POST.
+- Respostas: **201** / **400** / **409**. `customerName` opcional (vazio → `NULL`); nao exposto na response 201.
+
+### Validacao real
+
+| Comando | Resultado |
+| --- | --- |
+| `dotnet build TestOrder.slnx` | PASS |
+| `.\scripts\test.ps1` | PASS — **32/32** |
+| `dotnet test TestOrder.slnx` | PASS — **32/32** |
+
+Teste de concorrencia (`CreateOrder_ConcurrentRequests_DoNotOverbook`): **10 POSTs paralelos**, **5 unidades** disponiveis → **5×201 + 5×409**, zero overbooking.
+
+Codigo de producao **nao precisou de ajuste** durante a fatia de testes T014–T021.
+
+### Onde a IA ajudou
+
+- **Spec Kit**: `/speckit-specify`, `/speckit-plan`, `/speckit-tasks` para gerar spec, plan e tasks do modulo 002.
+- **Prompts por fatia**: T001–T009 (schema/backfill), T010–T013 (POST/transacao), T014–T021 (testes), T022–T025 (docs).
+- **`/speckit-analyze`**: revisao de cobertura e inconsistencias **antes** do implement (paralelismo enganoso, side effects, outbox em 409).
+- **Desenho dos testes de concorrencia**: produto controlado + 10 tasks paralelas com asserts SQL via Dapper.
+
+### Onde a IA foi limitada ou corrigida
+
+- **Paralelismo enganoso** em `tasks.md` (T014–T020 marcadas `[P]` no mesmo arquivo) — corrigido no analyze antes do implement.
+- **Evitar services/repositories/interfaces** desnecessarias — transacao ficou em `CreateOrderCommands.cs` estatico ao lado do controller.
+- **Regressao do modulo 001** mantida no mesmo arquivo `CreateOrderEndpointTests.cs` (nao criar `RegressionReadEndpointsTests.cs` separado).
+
+### Decisoes manuais
+
+- **MVC**, sem Minimal APIs — POST em `OrdersController` existente.
+- **Dapper** para transacao critica; **EF Core** apenas para schema, migration, entidades e backfill.
+- **Sem RabbitMQ/Kafka/Redis** neste modulo — outbox local em `order_processing_events` para consumo futuro pelo Node.
+- **`inventory_units`** como fonte de verdade da reserva (nao decremento cego em `stock_quantity`).
+- Pedidos historicos do seed (modulo 001) **nao** consomem unidades retroativamente.

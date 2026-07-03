@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
+using TestOrder.Api.Models.Requests;
 using TestOrder.Api.Models.Responses;
 
 namespace TestOrder.Api.Controllers;
@@ -70,6 +71,80 @@ public class OrdersController(MySqlConnection connection) : ControllerBase
 
         return Ok(ToOrderResponse(order, items));
     }
+
+    [HttpPost]
+    public async Task<ActionResult<OrderResponse>> CreateOrder(
+        [FromBody] CreateOrderRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var validationError = ValidateCreateOrderRequest(request);
+        if (validationError is not null)
+        {
+            return BadRequest(validationError);
+        }
+
+        var normalizedRequest = new CreateOrderRequest(
+            NormalizeCustomerName(request!.CustomerName),
+            request.Items);
+
+        await connection.OpenAsync(cancellationToken);
+
+        var result = await CreateOrderCommands.ExecuteAsync(connection, normalizedRequest, cancellationToken);
+
+        return result switch
+        {
+            CreateOrderSuccess success => CreatedAtAction(
+                nameof(GetOrderById),
+                new { id = success.OrderId },
+                new OrderResponse(
+                    success.OrderId,
+                    success.CreatedAt,
+                    success.Status,
+                    success.Total,
+                    success.Items)),
+            CreateOrderBadRequest badRequest => BadRequest(new ErrorResponse(badRequest.Message)),
+            CreateOrderConflict conflict => Conflict(new ErrorResponse(conflict.Message)),
+            _ => StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse("Unexpected error creating order."))
+        };
+    }
+
+    private static ErrorResponse? ValidateCreateOrderRequest(CreateOrderRequest? request)
+    {
+        if (request is null)
+        {
+            return new ErrorResponse("request body is required.");
+        }
+
+        if (request.Items is null || request.Items.Count == 0)
+        {
+            return new ErrorResponse("items must contain at least one entry.");
+        }
+
+        var seenProductIds = new HashSet<int>();
+
+        foreach (var item in request.Items)
+        {
+            if (item.Quantity <= 0)
+            {
+                return new ErrorResponse("quantity must be greater than 0.");
+            }
+
+            if (item.ProductId <= 0)
+            {
+                return new ErrorResponse("productId must be greater than 0.");
+            }
+
+            if (!seenProductIds.Add(item.ProductId))
+            {
+                return new ErrorResponse("duplicate productId in items.");
+            }
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeCustomerName(string? customerName) =>
+        string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
 
     private ErrorResponse? ValidatePagination(int? page, int? pageSize, out int resolvedPage, out int resolvedPageSize)
     {
