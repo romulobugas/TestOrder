@@ -1,0 +1,46 @@
+---
+description: TestOrder technical challenge rules
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# TestOrder Rules
+
+Build the smallest readable system that satisfies the challenge. Prefer MVC controllers and direct code over architecture ceremony.
+
+Before implementing any module, read `desafio-pleno.md`, the active `specs/**` files for that module, `AI_NOTES.md`, and `docs/PRESENTATION_GUIDE.md`.
+
+## Keep
+
+- ASP.NET Core MVC controllers for HTTP boundaries.
+- EF Core for schema/model ownership and simple database setup.
+- Dapper or raw SQL for read-heavy queries and the order creation transaction.
+- MySQL 8 as the relational database because the concurrency demonstration uses `FOR UPDATE SKIP LOCKED`.
+- React web UI as the first screen of the app, not a landing page.
+- Node microservice only for asynchronous processing after an order is created.
+
+## Avoid
+
+- Clean Architecture folders by ritual.
+- DDD tactical patterns for this small domain.
+- Repository interfaces, generic services, CQRS, Mediator, handlers, mappers, factories, or strategies unless the code proves a current need.
+- RabbitMQ, Kafka, Redis, background infrastructure, or extra databases.
+- Large rewrites outside the requested prompt step.
+
+## Workflow
+
+- Build one reviewable module per branch.
+- For each module, create/update Spec Kit artifacts first: `spec.md`, then `plan.md`, then `tasks.md`.
+- Keep `AI_NOTES.md` current after each AI-assisted step.
+- Keep `docs/PRESENTATION_GUIDE.md` current with decisions, tradeoffs, and code references that help explain the solution in person.
+- Do not implement later modules while working on the current module.
+- After each module, leave practical validation steps in the module task file and in `docs/PRESENTATION_GUIDE.md`.
+
+## Style
+
+- Keep each feature understandable from a small number of files.
+- Put SQL close to the controller/service that uses it.
+- Use clear records/classes for request and response contracts.
+- Add comments only around the concurrency/reservation transaction where the database behavior matters.
+- Each implementation step must leave the project building or explain exactly what is still incomplete.
