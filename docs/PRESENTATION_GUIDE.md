@@ -23,7 +23,7 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 2. Criacao de pedidos com reserva concorrente. **(concluido)**
 3. Faturamento por periodo. **(concluido)**
 4. Tela React. **(concluido)**
-5. Microservico Node e outbox.
+5. Microservico Node e outbox. **(concluido)**
 6. README, AI_NOTES e decisoes finais.
 
 ## Referencias externas
@@ -59,6 +59,10 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 | 004 | `src/TestOrder.Web/src/api.js` | Helper obrigatorio: `fetchProducts`, `fetchOrders`, `createOrder` |
 | 004 | `src/TestOrder.Web/vite.config.js` | Proxy `/api` -> `http://localhost:5069`, sem CORS no backend |
 | 004 | `src/TestOrder.Web/src/styles.css` | CSS proprio, responsivo, sem framework |
+| 005 | `src/TestOrder.OrderProcessor/worker.js` | `processPendingEvents`: `FOR UPDATE SKIP LOCKED`, UPDATE condicional, comentario de concorrencia |
+| 005 | `src/TestOrder.OrderProcessor/index.js` | Pool `mysql2/promise`, loop de polling, tratamento de erro, shutdown `SIGINT` |
+| 005 | `src/TestOrder.OrderProcessor/config.js` | Env vars com defaults do `docker-compose.yml`, override opcional de polling/lote |
+| 005 | `scripts/dev-up.ps1` | Quarta janela `TestOrder - Worker`, `npm install` condicional do worker |
 
 ## Modulo 001 — roteiro de demo (5–10 min)
 
@@ -344,3 +348,86 @@ npm run build
 A validacao inicial de fluxo (201/400/409) foi confirmada via chamadas HTTP diretas ao proxy do Vite. Numa correcao posterior (overflow mobile, `itemError` residual, `formatDate` em UTC), a validacao foi refeita com um navegador real headless (Playwright/Chromium, instalado apenas de forma temporaria e removido ao final — nao consta em `package.json`), cobrindo: ausencia de erro de console em desktop/mobile, ausencia de overflow horizontal do body em 375px, bloqueio de produto duplicado, criacao de pedido apos esse bloqueio sem mensagem antiga residual, e formatacao de data em UTC com timezone de navegador alterado. Ainda assim, recomenda-se repetir o checklist do `quickstart.md` manualmente antes da apresentacao para os itens nao cobertos por automacao (ex.: leitura visual subjetiva do layout).
 
 Em uma sessao PowerShell normal, o script abre tres janelas CMD. Antes da apresentacao, confirme visualmente que as janelas `TestOrder - MySQL`, `TestOrder - API` e `TestOrder - Web` permaneceram abertas.
+
+## Modulo 005 — roteiro de demo (5–10 min)
+
+### Mensagem para a sala
+
+Um microservico Node.js pequeno e sem framework, que consome a tabela `order_processing_events` (criada no modulo 002) como um "outbox": nenhuma fila externa (sem Rabbit/Kafka/Redis), nenhuma alteracao de schema, nenhuma chamada HTTP nova entre backend e worker. A concorrencia entre multiplas instancias do worker e resolvida com o mesmo padrao MySQL 8 ja usado no modulo 002 (`FOR UPDATE SKIP LOCKED`), agora aplicado a consumo em vez de reserva de estoque.
+
+### Passos
+
+1. **Subir tudo com um comando**: `.\scripts\dev-up.ps1` — agora abre **quatro** janelas CMD (`TestOrder - MySQL`, `TestOrder - API`, `TestOrder - Web`, `TestOrder - Worker`); instala dependencias do worker automaticamente na primeira execucao.
+2. **Criar um pedido pela UI** (ou via `curl`/`Invoke-RestMethod` em `POST /api/orders`).
+3. **Observar a janela `TestOrder - Worker`** — linha JSON aparece em ate ~2s (1 ciclo de polling):
+   ```json
+   {"level":"info","action":"order-created-processed","eventId":13,"orderId":5013,"eventType":"OrderCreated","processedAt":"2026-07-03T23:33:23.165Z"}
+   ```
+4. **SQL — confirmar `processed`**:
+   ```sql
+   SELECT id, order_id, event_type, status FROM order_processing_events ORDER BY id DESC LIMIT 5;
+   ```
+5. **Concorrencia** (opcional, se houver tempo): abrir uma segunda janela `cd src\TestOrder.OrderProcessor; node index.js`, criar 2–3 pedidos e mostrar que cada evento e processado uma unica vez entre as duas instancias.
+6. **Resiliencia** (opcional): `docker compose stop mysql` com worker rodando — mostrar log de erro sem o processo morrer; `docker compose start mysql` — worker retoma sozinho.
+7. **Shutdown**: `Ctrl+C` na janela do worker — encerra sem stack trace.
+8. **Testes**: `.\scripts\test.ps1` — **46/46**, backend intacto.
+
+### Trecho central (worker.js)
+
+```javascript
+// Concorrência segura: FOR UPDATE SKIP LOCKED reserva os eventos pendentes
+// para esta transação sem bloquear outras instâncias do worker...
+const [rows] = await conn.query(
+  `SELECT id, order_id, event_type, payload, created_at
+   FROM order_processing_events
+   WHERE status = 'pending' AND event_type = 'OrderCreated'
+   ORDER BY created_at ASC, id ASC
+   LIMIT ?
+   FOR UPDATE SKIP LOCKED`,
+  [config.batchSize],
+);
+```
+
+Marcacao final via `UPDATE ... WHERE id = ? AND status = 'pending'` — se `affectedRows === 0`, outra instancia ja processou; segue sem erro (idempotencia, sem status intermediario `processing`).
+
+## Validacoes — Modulo 005
+
+| Validacao | Status | Evidencia |
+| --- | --- | --- |
+| `dotnet build TestOrder.slnx` | PASS | Build sem erros (baseline e pos-implementacao) |
+| `.\scripts\test.ps1` | PASS | 46/46 testes — nenhum arquivo de backend alterado |
+| `npm install` no worker | PASS | 13 pacotes (`mysql2` + deps), 0 vulnerabilidades |
+| `node index.js` (smoke) | PASS | Conecta ao MySQL, processa lote inicial, log JSON limpo |
+| Fluxo E2E: pedido → worker → `processed` | PASS | Pedido `#5013` processado em 1 ciclo (~2s); DB confirma `status='processed'` |
+| Concorrencia — 2 instancias, 3 pedidos | PASS | 3 eventos `processed` exatamente uma vez cada; zero duplicidade de `eventId` entre instancias |
+| Fila vazia — sem spam de log | PASS | Ciclos de polling silenciosos sem eventos pendentes |
+| MySQL indisponivel (`docker compose stop mysql`) | PASS | Worker loga erro JSON por ciclo e continua rodando (sem crash) |
+| MySQL volta (`docker compose start mysql`) + novo pedido | PASS | Worker retoma processamento sozinho, sem reinicio manual |
+| Shutdown `Ctrl+C` | PASS | Testado com `GenerateConsoleCtrlEvent`/CTRL_C_EVENT (equivalente real a Ctrl+C); processo encerrou sozinho via `pool.end()` + `process.exit(0)` |
+| AC-008 — `npm install` condicional no `dev-up.ps1` | PASS | 1ª execucao instala (`node_modules` ausente); 2ª execucao pula a instalacao |
+| AC-004 (opcional) — `event_type` diferente de `OrderCreated` | PASS | Evento inserido manualmente permanece `pending`; worker nao falha e nao o processa |
+| `package.json` do worker sem broker externo | PASS | Apenas `mysql2` como dependencia de producao |
+| Backend nao chama worker via HTTP | PASS | Comunicacao 100% via tabela `order_processing_events` |
+| Nenhum arquivo de `src/TestOrder.Api`, `src/TestOrder.Web` ou `tests/` alterado | PASS | Confirmado via `git diff --name-only` |
+
+### Comandos de validacao final
+
+```powershell
+# Backend
+Get-Process TestOrder.Api -ErrorAction SilentlyContinue | Stop-Process -Force
+dotnet build TestOrder.slnx
+.\scripts\test.ps1
+
+# Worker smoke
+cd src/TestOrder.OrderProcessor
+node index.js
+# Ctrl+C apos alguns ciclos
+cd ../..
+
+# Escopo
+git diff --name-only
+```
+
+### Observacao operacional
+
+Assim como no modulo 004, o ambiente de implementacao (sandbox) nao mantem processos em segundo plano nem janelas `Start-Process` vivas de forma confiavel entre chamadas de ferramenta separadas — isso exigiu adaptar a validacao de E2E, concorrencia e resiliencia para scripts PowerShell auto-contidos (inicia, testa e encerra os processos dentro de uma unica execucao). O teste de `Ctrl+C` foi feito enviando o sinal real do Windows (`CTRL_C_EVENT`) ao processo do worker via P/Invoke, equivalente a pressionar `Ctrl+C` manualmente em uma janela interativa — nao apenas uma revisao de codigo. Em uma sessao normal do usuario, as quatro janelas CMD abertas pelo `dev-up.ps1` funcionam normalmente e permanecem visiveis; confirme isso visualmente antes da apresentacao.

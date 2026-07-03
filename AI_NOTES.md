@@ -276,3 +276,56 @@ Screenshots de validacao foram gerados e inspecionados durante a sessao, depois 
 - Documentos publicos (`README.md`, `quickstart.md`, `docs/PRESENTATION_GUIDE.md`) tiveram a explicacao longa sobre o comportamento do `Start-Process` simplificada para uma frase curta pedindo confirmacao visual das 3 janelas.
 - **Detalhe tecnico movido para ca**: durante o desenvolvimento deste script, o agente de IA validou seu comportamento a partir de um shell em sandbox que encerra processos abertos via `Start-Process` ao final de cada chamada de ferramenta — por isso as 3 janelas CMD nao puderam ser observadas "vivas" simultaneamente durante a validacao automatizada nesta sessao; os comandos internos (`dotnet run`, `npm run dev`) foram entao validados diretamente (fora de `Start-Process`) com sucesso. Isso e uma limitacao do ambiente de implementacao, nao do script, que usa o padrao documentado do Windows e funciona normalmente em uma sessao interativa comum do usuario.
 - **Validacao desta limpeza**: `dotnet build TestOrder.slnx` PASS, `.\scripts\test.ps1` PASS (46/46). `.\scripts\dev-up.ps1` executado de ponta a ponta: nenhum aviso de porta 5069 (livre no momento do check pre-build), aviso correto de porta 5173 ocupada (entrada TCP remanescente e transitoria do proprio sandbox, sem processo dono identificavel) e mensagem final ajustada corretamente para "check the TestOrder - Web window for the Vite port". O bind da API na porta 5069 falhou nesta sessao por causa dessa mesma instabilidade de rede do sandbox (nao reproduz um defeito do script/codigo); validado com sucesso subindo a API em porta alternativa (`dotnet run --project src\TestOrder.Api --urls http://127.0.0.1:5079`) — `GET /api/products` retornou 200 com 50 produtos — e o frontend (`npm run dev`, que subiu em `5178` apos varias portas ocupadas) retornou 200 com `<title>TestOrder</title>` presente.
+
+## Modulo 005 - Microservico Node para processamento do outbox
+
+**Status: concluido** (T001-T023).
+
+### O que foi implementado
+
+- Projeto novo `src/TestOrder.OrderProcessor/` (Node.js, **JavaScript puro**, ESM, sem TypeScript).
+- `config.js`: le variaveis de ambiente com defaults do `docker-compose.yml` (`MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`) e permite override opcional de `POLL_INTERVAL_MS` (default 2000) e `BATCH_SIZE` (default 10).
+- `worker.js`: funcao `processPendingEvents(pool)` — transacao curta com `SELECT ... FOR UPDATE SKIP LOCKED` sobre `order_processing_events` (`status='pending' AND event_type='OrderCreated'`), log JSON estruturado por evento e `UPDATE ... SET status='processed' WHERE id=? AND status='pending'` condicional (idempotencia via `affectedRows === 0`, sem erro se outra instancia venceu a corrida).
+- `index.js`: bootstrap do pool `mysql2/promise`, loop de polling continuo com `try/catch` (erro loga e continua, nunca `process.exit`), shutdown limpo via `SIGINT` (flag `shuttingDown`, aguarda ciclo em andamento, fecha o pool, so entao `process.exit(0)`).
+- `package.json`: **unica** dependencia de producao `mysql2`; script `start`.
+- `scripts/dev-up.ps1`: quarta janela `TestOrder - Worker` (`node index.js`), com `npm install` condicional (so roda se `node_modules` nao existir), mesmo padrao ja usado para o frontend.
+- **Nenhum schema, migration, backend .NET ou frontend React alterado** — comunicacao 100% via a tabela `order_processing_events` ja existente (modulo 002), sem endpoint HTTP novo, sem broker externo (Rabbit/Kafka/Redis/BullMQ), sem Dockerfile do worker.
+
+### Validacao real
+
+| Comando/cenario | Resultado |
+| --- | --- |
+| `dotnet build TestOrder.slnx` (baseline e pos-implementacao) | PASS |
+| `.\scripts\test.ps1` (baseline e pos-implementacao) | PASS — **46/46**, sem alteracao no backend |
+| `cd src/TestOrder.OrderProcessor; npm install` | PASS — 13 pacotes (`mysql2` + deps), 0 vulnerabilidades |
+| `node index.js` (smoke, MySQL rodando) | PASS — conecta, processa lote inicial, log JSON limpo |
+| Fluxo E2E (API `POST /api/orders` -> worker -> MySQL) | PASS — pedido criado, worker logou `order-created-processed` em ~2s (1 ciclo de polling), linha em `order_processing_events` mudou para `processed` |
+| Concorrencia — 2 instancias simultaneas + 3 pedidos novos | PASS — os 3 eventos foram `processed` exatamente uma vez cada; nenhum `eventId` duplicado entre os logs das duas instancias (`FOR UPDATE SKIP LOCKED` funcionando) |
+| Fila vazia (worker sozinho, sem eventos pendentes) | PASS — nenhum log de erro/spam durante os ciclos de polling |
+| `docker compose stop mysql` com worker rodando | PASS — worker loga `{"level":"error","action":"poll-cycle-failed",...}` a cada ciclo e **continua rodando** (processo nao morre) |
+| `docker compose start mysql` + novo pedido | PASS — worker retoma processamento sozinho, sem reinicio manual |
+| Shutdown via `Ctrl+C` (simulado com `GenerateConsoleCtrlEvent`/CTRL_C_EVENT do Windows, ja que o ambiente de implementacao nao tem console interativo anexado ao processo em background) | PASS — processo recebeu o sinal e encerrou sozinho (sem necessidade de `Stop-Process -Force`), confirmando o fluxo `SIGINT -> shuttingDown=true -> pool.end() -> process.exit(0)` |
+| AC-008 — `npm install` condicional do worker no `dev-up.ps1` | PASS — 1ª execucao (sem `node_modules`) mostrou "Worker dependencies not found - running npm install"; 2ª execucao (com `node_modules` presente) **nao** mostrou essa mensagem |
+| AC-004 (opcional) — evento com `event_type` diferente de `OrderCreated` | PASS — inserido manualmente, worker rodou 3 ciclos sem erro e sem log de processamento; linha permaneceu `pending` (fora do SELECT do worker, dead-letter fora de escopo) |
+| `package.json` do worker sem dependencia proibida | PASS — apenas `mysql2` |
+| `git diff --name-only` apos implementacao | PASS — apenas arquivos do worker, `scripts/dev-up.ps1`, docs e specs; nenhum arquivo de `src/TestOrder.Api/`, `src/TestOrder.Web/`, `tests/` ou migrations tocado |
+
+### Onde a IA ajudou
+
+- **Spec Kit completo**: `/speckit-plan`, `/speckit-tasks`, `/speckit-analyze` (uma rodada) e `/speckit-implement` para gerar e revisar spec/plan/tasks antes de qualquer codigo.
+- **`/speckit-analyze`** identificou 2 HIGH, 5 MEDIUM e 4 LOW antes do implement: ordem invertida entre validacao manual e documentacao no `tasks.md` (H1), falta de passos reproduziveis para validar o `npm install` condicional/AC-008 (H2), assumption desatualizada sobre variaveis de ambiente de polling (M1), ausencia de validacao explicita para `event_type` fora do contrato/AC-004 (M2), tratamento de `affectedRows === 0` nao explicito nas tarefas (M3), MVP minimo dependendo implicitamente de uma tarefa de fase posterior (M4), ambiguidade sobre o que significa "ignorar" outros `event_type` (M5), alem de referencias cruzadas erradas e duplicacao de tarefa (LOWs). Todos corrigidos nos artefatos **antes** de escrever qualquer linha de codigo.
+- Execucao do `/speckit-implement` seguiu `tasks.md` em ordem estrita, com validacao manual real (nao apenas revisao de codigo) para E2E, concorrencia, resiliencia e shutdown.
+
+### Onde a IA foi limitada ou corrigida
+
+- **Processos em background nao sao confiaveis entre chamadas de ferramenta neste ambiente de sandbox**: `Stop-Process` em um PID de wrapper (`pwsh.exe`/`cmd.exe`) nao mata o processo `node.exe` filho real, deixando instancias orfas do worker rodando sem que o agente perceba. Isso gerou confusao inicial durante a validacao E2E (eventos sendo processados por uma instancia orfa, sem log aparecer no terminal esperado). Corrigido identificando os PIDs reais via `Get-CimInstance Win32_Process` (filtrando por `CommandLine`) e adotando scripts PowerShell auto-contidos (inicia processos, testa, limpa, tudo numa unica chamada) para os testes de E2E, concorrencia e resiliencia, evitando depender de estado de processo entre chamadas separadas.
+- **Sem console interativo real disponivel para testar `Ctrl+C` da forma literal** (o agente nao tem uma ferramenta de "enviar teclas" a um terminal em foreground) — resolvido com uma tecnica de baixo nivel do Windows (`AttachConsole` + `GenerateConsoleCtrlEvent(CTRL_C_EVENT)` via P/Invoke) que envia o sinal real ao processo do worker, validando o comportamento de shutdown de forma equivalente a um `Ctrl+C` manual, nao apenas por revisao de codigo.
+- Sem suite automatizada do worker (decisao explicita da spec, NFR-007/R9) — validacao via smoke `node index.js` + checklist manual objetivo, incluindo os cenarios acima.
+
+### Decisoes manuais
+
+- **JavaScript puro (ESM), sem TypeScript, sem framework** — apenas `mysql2` como dependencia de producao; sem classes, repository pattern, service layer, DI container ou ORM.
+- **3 arquivos no worker** (`config.js`, `worker.js`, `index.js`) — suficiente para o escopo, sem pastas `src/`, `lib/` ou camadas adicionais.
+- **Sem status intermediario `processing`** — a combinacao `SELECT ... FOR UPDATE SKIP LOCKED` + `UPDATE ... WHERE status='pending'` condicional e suficiente para evitar duplicidade entre instancias, sem precisar de um terceiro estado.
+- **Sem alteracao de schema** — idempotencia alcancada com o schema atual da tabela `order_processing_events` (criada no modulo 002).
+- **Comentario de codigo restrito ao bloco SQL de concorrencia** em `worker.js`, conforme regra do projeto — nenhum outro comentario narrativo foi adicionado.
