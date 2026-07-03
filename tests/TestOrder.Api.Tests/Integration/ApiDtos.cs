@@ -1,0 +1,21 @@
+namespace TestOrder.Api.Tests.Integration;
+
+public sealed record ProductDto(int Id, string Name, decimal UnitPrice);
+
+public sealed record OrderItemDto(int ProductId, string ProductName, int Quantity, decimal UnitPrice);
+
+public sealed record OrderDto(
+    long Id,
+    DateTime CreatedAt,
+    string Status,
+    decimal Total,
+    IReadOnlyList<OrderItemDto> Items);
+
+public sealed record PagedOrdersDto(
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages,
+    IReadOnlyList<OrderDto> Items);
+
+public sealed record ErrorDto(string Error);

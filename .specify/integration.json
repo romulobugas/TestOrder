@@ -1,0 +1,30 @@
+{
+  "version": "0.12.4",
+  "integration_state_schema": 1,
+  "installed_integrations": [
+    "cursor-agent",
+    "claude",
+    "codex",
+    "agy"
+  ],
+  "integration_settings": {
+    "cursor-agent": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "claude": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "codex": {
+      "script": "ps",
+      "invoke_separator": "-"
+    },
+    "agy": {
+      "script": "ps",
+      "invoke_separator": "-"
+    }
+  },
+  "integration": "cursor-agent",
+  "default_integration": "cursor-agent"
+}
