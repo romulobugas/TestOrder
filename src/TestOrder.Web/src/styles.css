@@ -1,0 +1,420 @@
+:root {
+  --color-background: #171c17;
+  --color-card: #1e251e;
+  --color-card-hover: #262e26;
+  --color-border: #2d362d;
+  --color-text-main: #e2e8e0;
+  --color-text-muted: #94a390;
+  --color-primary: #7a9163;
+  --color-primary-strong: #62774f;
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text-main);
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.85rem 1.5rem;
+}
+
+.app-header-title h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--color-text-main);
+}
+
+.app-header-title p {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  border: 1px solid var(--color-border);
+  background: var(--color-card-hover);
+}
+
+.status-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-badge--online {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+}
+
+.status-badge--online .status-dot {
+  background: var(--color-success);
+}
+
+.status-badge--warning {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--color-border));
+}
+
+.status-badge--warning .status-dot {
+  background: var(--color-danger);
+}
+
+.app-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  align-items: start;
+  max-width: 100%;
+}
+
+.panel {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+  min-width: 0;
+}
+
+.panel h2 {
+  margin-top: 0;
+  margin-bottom: 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.85rem;
+}
+
+.form-row label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.form-row input,
+.form-row select {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-main);
+  font-size: 0.88rem;
+}
+
+.form-row input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+
+.item-row {
+  flex-direction: row;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.item-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 120px;
+}
+
+.item-field-quantity {
+  flex: 0 0 90px;
+  min-width: 70px;
+}
+
+.draft-items {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.draft-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.83rem;
+}
+
+.draft-items-empty {
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.btn-primary,
+.btn-secondary {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #10140f;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-strong);
+}
+
+.btn-primary:disabled {
+  background: var(--color-card-hover);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--color-card-hover);
+  color: var(--color-text-main);
+  border-color: var(--color-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0;
+}
+
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+.hint {
+  color: var(--color-text-muted);
+  font-size: 0.83rem;
+}
+
+.error-message {
+  color: #fca5a5;
+  font-size: 0.83rem;
+  background: color-mix(in srgb, var(--color-danger) 14%, var(--color-card));
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, var(--color-border));
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  margin: 0 0 0.6rem;
+}
+
+.success-message {
+  color: #6ee7b7;
+  font-size: 0.83rem;
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-card));
+  border: 1px solid color-mix(in srgb, var(--color-success) 40%, var(--color-border));
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  margin: 0 0 0.6rem;
+}
+
+.orders-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.orders-panel-title h2 {
+  margin-bottom: 0.4rem;
+}
+
+.stat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.stat-chip {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.orders-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.orders-table thead {
+  background: var(--color-background);
+}
+
+.orders-table th {
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.orders-table td {
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-main);
+}
+
+.orders-table tbody tr:hover {
+  background: var(--color-card-hover);
+}
+
+.orders-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+  font-size: 0.83rem;
+}
+
+.pagination button {
+  border: 1px solid var(--color-border);
+  background: var(--color-card-hover);
+  color: var(--color-text-main);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.pagination button:disabled {
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .app-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  .item-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .orders-panel-header {
+    flex-direction: column;
+  }
+
+  .orders-table-wrapper {
+    /* A tabela pode rolar horizontalmente dentro deste wrapper; o body nunca ultrapassa a viewport. */
+    overflow-x: auto;
+  }
+
+  .orders-table {
+    min-width: 480px;
+    white-space: nowrap;
+  }
+}

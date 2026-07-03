@@ -171,3 +171,108 @@ Codigo de producao (`RevenueController.cs`/`RevenueQueries.cs`) **nao precisou d
 - **Dapper** para a agregacao; nenhuma entidade EF, repository, service generico, interface, MediatR, CQRS ou AutoMapper.
 - Dados de teste deterministicos inseridos via SQL direto (produto e datas exclusivos por teste) para os testes de agregacao; teste de regressao usa um intervalo amplo cobrindo o periodo real do seed (`2025-07-02` a `2026-07-01`) para confirmar que pedidos historicos tambem sao contabilizados.
 - `OrdersController.cs`, `CreateOrderCommands.cs`, `ProductsController.cs`, `Program.cs`, `TestOrderDbContext.cs` e migrations **nao** foram tocados.
+
+## Modulo 004 - Tela web React para pedidos
+
+**Status: concluido** (T001-T026).
+
+### O que foi implementado
+
+- Projeto novo `src/TestOrder.Web/` (React 18 + Vite 6, **JavaScript puro**, sem TypeScript).
+- `src/api.js`: helper local **obrigatorio** com apenas `fetchProducts`, `fetchOrders`, `createOrder` (fetch nativo, sem Axios/service layer generica).
+- `src/App.jsx` concentra todo o estado (`useState`/`useEffect`, sem Redux/Zustand/React Query): listagem paginada, formulario de criacao, tratamento de erros 400/409, loading/empty state.
+- `src/styles.css`: CSS proprio, sem framework, uma media query (~640px) para empilhar layout em mobile.
+- `vite.config.js`: proxy `/api` -> `http://localhost:5069` (sem CORS no backend).
+- **Nenhum arquivo de `src/TestOrder.Api/` ou `tests/` foi tocado**.
+
+### Decisoes de UX confirmadas na implementacao
+
+- Quantidade **0, negativa, vazia ou nao numerica** e rejeitada antes de entrar no rascunho (validacao com regex `^-?\d+$` + `Number.isInteger` + `> 0`); mensagem inline, nenhuma chamada de rede.
+- Produto duplicado no rascunho e **bloqueado** com mensagem inline (nao soma quantidade), conforme research.md R3.
+- Apos `201`: rascunho limpo, mensagem de sucesso, `page` resetado para `1` e nova busca disparada via `refreshKey` (evita fetch duplicado quando a pagina ja era `1`).
+- Erros `400`/`409`/rede preservam o rascunho (`draftOrder` nao e resetado); mensagem extraida de `{ error }` do backend.
+
+### Validacao real
+
+| Comando | Resultado |
+| --- | --- |
+| `dotnet build TestOrder.slnx` (baseline pre-frontend) | PASS |
+| `.\scripts\test.ps1` (baseline pre-frontend) | PASS — **46/46** |
+| `cd src/TestOrder.Web; npm install` | PASS — 66 pacotes, 0 vulnerabilidades |
+| `npm run build` | PASS — `dist/` gerado (~150 KB JS, ~48 KB gzip) |
+| Revisao de `package.json` | PASS — dependencias finais: `react`, `react-dom`, `vite`, `@vitejs/plugin-react` (nenhuma proibida) |
+| `dotnet build TestOrder.slnx` + `.\scripts\test.ps1` (regressao pos-frontend) | PASS — **46/46** |
+| Validacao manual via `curl`/`Invoke-RestMethod` contra o proxy Vite (`http://localhost:5173/api/*`) | PASS — `GET /api/products` (200, 50 itens), `GET /api/orders` (200, paginado), `POST /api/orders` valido (201), produto duplicado no payload (400), quantidade absurda (409) — corpo `{ "error": "..." }` em ambos os casos de erro, compativel com o parsing de `api.js` |
+
+**Limitacao explicita**: a validacao acima do fluxo de criacao/erros foi feita via chamadas HTTP diretas ao proxy do Vite (confirmando contrato e proxy), nao via clique manual na interface em um navegador real — o agente de IA nao possui ferramenta de automacao de navegador neste ambiente. A revisao visual final (responsividade, mensagens na tela, estados de loading) deve ser conferida por um humano seguindo o checklist do `quickstart.md`/T026 antes da apresentacao.
+
+### Onde a IA ajudou
+
+- **Spec Kit**: `/speckit-specify`, `/speckit-plan`, `/speckit-tasks`, `/speckit-analyze` (duas rodadas) e `/speckit-implement` para gerar e revisar spec/plan/tasks antes de implementar.
+- **`/speckit-analyze`** identificou 8 achados (U1, U2, C1, I1-I4, D1) antes do implement: quantidade invalida pouco explicita, ausencia de verificacao de dependencias proibidas no checklist, dependencia `T009 -> T010` implicita, `api.js` descrito como "opcional" quando na pratica e obrigatorio, e paralelismo enganoso entre T018/T019 (mesma preocupacao ja vista no modulo 002). Todos os achados foram corrigidos nos artefatos **antes** de qualquer codigo ser escrito.
+- Prompt unico cobrindo T001-T026 (scaffold, api.js, App.jsx, styles.css, build, regressao, docs), respeitando fases e arquivos permitidos.
+
+### Onde a IA foi limitada ou corrigida
+
+- `@vitejs/plugin-react@6.x` exige `vite@^8`; o `plan.md` previa Vite 5.x/6.x — resolvido fixando `@vitejs/plugin-react@^5.2.0` (compativel com Vite 6) em vez de subir para Vite 8, mantendo a decisao original do plano.
+- Sem suite de testes automatizados de frontend neste modulo (decisao explicita da spec) — validacao por build + contrato HTTP + checklist manual, nao por testes unitarios/E2E.
+- Sem ferramenta de automacao de navegador disponivel — validacao de clique-a-clique na UI depende de revisao humana (ver limitacao acima).
+
+### Decisoes manuais
+
+- **React + Vite + JavaScript** (sem TypeScript), estado 100% local, sem bibliotecas de estado/dados ou UI pesadas.
+- `App.jsx` unico (sem subcomponentes extraidos) — numero de elementos da tela nao justificou dividir em arquivos menores.
+- `api.js` com exatamente 3 funcoes, sem classes/interfaces/DI.
+- `.gitignore` recebeu apenas um append pontual (`src/TestOrder.Web/dist/`) — `node_modules/` ja estava coberto genericamente.
+
+### Correcao pos-implementacao (revisao humana apos primeira entrega)
+
+Tres problemas identificados apos a primeira implementacao, corrigidos em `App.jsx`/`styles.css`:
+
+1. **Overflow horizontal em mobile (~375px)**: causa raiz era o grid `.app-main` sem `minmax(0, 1fr)` na coluna da listagem — um item de grid sem `min-width: 0` nao encolhe abaixo do min-content da tabela, entao a tabela (com celulas largas) empurrava o `body` inteiro para alem da viewport. Corrigido com `minmax(0, 1fr)` no grid, `min-width: 0` em `.panel`, e a tabela agora fica dentro de um `.orders-table-wrapper` com `overflow-x: auto` proprio — o scroll fica confinado ao wrapper, nao ao `body`. `html`/`body` tambem ganharam `overflow-x: hidden` como rede de seguranca.
+2. **`itemError` (mensagem de produto duplicado) sobrevivia apos criar pedido com sucesso**: `handleCreateOrder` nao limpava esse estado. Corrigido adicionando `setItemError(null)` no inicio de `handleCreateOrder`, junto com `createError`/`createSuccessMessage`.
+3. **`formatDate` deslocava o dia por timezone local**: `toLocaleString('pt-BR')` sem `timeZone` usa o fuso do navegador, podendo mostrar dia diferente do UTC retornado pelo backend (`createdAt` com sufixo `Z`). Corrigido forçando `timeZone: 'UTC'` na formatacao.
+
+**Validacao real em navegador** (nao apenas contrato HTTP desta vez): usado Playwright (Chromium headless) instalado **temporariamente** via `npm install --no-save` em `src/TestOrder.Web` — nao ficou registrado em `package.json`/`package-lock.json`, removido do `node_modules` ao final com `npm install` normal. Resultados:
+
+| Verificacao | Resultado |
+| --- | --- |
+| Desktop (1280×800) sem erro de console | PASS — `consoleErrors: []`, `pageErrors: []` |
+| Mobile (375×667) sem overflow horizontal do body | PASS — `document.documentElement.scrollWidth === clientWidth === 375` |
+| Produto duplicado exibe mensagem de erro | PASS |
+| Criar pedido valido logo apos o erro de duplicado | PASS — mensagem de sucesso exibida, `itemError` **nao** mais visivel |
+| `formatDate` em UTC (testado com timezone de navegador `Pacific/Kiritimati`, UTC+14) | PASS — data renderizada identica ao valor UTC do backend, sem deslocar dia |
+
+Apos a correcao: `npm run build` PASS, `dotnet build` + `.\scripts\test.ps1` PASS — **46/46** intacto.
+
+### Ajuste visual - tema escuro operacional
+
+Pedido: ajustar a UI do `TestOrder` para uma estetica mais operacional (fundo verde-carvao, cards escuros, acentos olive/emerald), somente CSS + pequenos ajustes de markup em `App.jsx`, sem tocar em `api.js`, backend, dependencias ou logica de criacao/listagem.
+
+**O que mudou:**
+
+- `styles.css` reescrito com tokens `:root` para o tema escuro operacional (`--color-background: #171c17`, `--color-card: #1e251e`, `--color-card-hover: #262e26`, `--color-border: #2d362d`, `--color-text-main: #e2e8e0`, `--color-text-muted: #94a390`, mais `--color-primary`/`--color-primary-strong` (olive) e `--color-danger`/`--color-success` para mensagens). Todos os elementos (header, panels, botoes, tabela, inputs, paginacao, badges) passaram a consumir esses tokens em vez de cores hardcoded.
+- Tabela de pedidos ganhou visual de dashboard operacional: cabecalho com fundo mais escuro que o card, texto em uppercase/tracking, linhas com hover (`--color-card-hover`) e bordas discretas, tudo em CSS puro.
+- Inputs/selects: fundo mais escuro que o card, borda `--color-border`, foco com `box-shadow` na cor primaria (equivalente ao `focus:ring` do Tailwind, sem a dependencia).
+- Bordas padronizadas em 6–8px (dentro da faixa 6–10px pedida), sombras evitadas para manter densidade de "tela operacional" em vez de visual de marketing.
+- `App.jsx`: adicionado um badge de status compacto no header (`Sistema operacional` / `Instabilidade detectada`, calculado a partir de `productsError`/`ordersError` ja existentes — nenhuma logica nova) e chips de contadores no painel de pedidos (`{totalCount} pedidos`, `pág. {page}/{totalPages}`), substituindo o texto redundante que antes ficava dentro da barra de paginacao (que agora tem so os botoes Anterior/Proxima). Nenhum estado novo foi criado; os valores ja existiam em `pagination`.
+- Nenhum emoji usado; nenhum componente novo extraido — tudo permanece em `App.jsx`.
+
+**Validacao:**
+
+| Verificacao | Resultado |
+| --- | --- |
+| `package.json` / `package-lock.json` | Inalterados (confirmado via `git status --porcelain` e busca por "playwright" nos dois arquivos — nenhuma ocorrencia) |
+| `npm run build` | PASS — `dist/` gerado (~151 KB JS / ~48,6 KB gzip, CSS ~6,6 KB / ~1,7 KB gzip) |
+| `dotnet build TestOrder.slnx` | PASS — 0 erros |
+| `.\scripts\test.ps1` | PASS — **46/46** |
+| Validacao visual real (Playwright/Chromium, instalado temporariamente com `npm install --no-save` e removido do `node_modules` ao final) | Desktop 1280×800: `getComputedStyle(body).backgroundColor` = `rgb(23, 28, 23)` (`#171c17`, confirma tema aplicado); 0 `console.error`/`pageerror`. Mobile 375×700: `scrollWidth === clientWidth === 375` em `body` e `documentElement` (sem overflow horizontal). Fluxo completo testado: produto duplicado exibe erro inline, criacao de pedido valido logo apos limpa o erro (`itemError` some, mensagem de sucesso aparece), tabela mantém scroll interno em mobile. |
+
+Screenshots de validacao foram gerados e inspecionados durante a sessao, depois descartados (nao versionados) — nao ha necessidade de mante-los no repositorio.
+
+### Limpeza final — dev-up.ps1 e documentacao
+
+- `scripts/dev-up.ps1`: checagem das portas 5069/5173 movida para **antes** do `dotnet build` (aviso especifico se 5069 estiver ocupada, pois o build pode falhar no Windows com o `.exe` da API em uso); mensagens convertidas para ASCII puro (sem `—`); mensagem final do frontend agora e condicional (`http://localhost:5173` ou aviso para checar a janela `TestOrder - Web` quando a porta estava ocupada). Nenhum processo e encerrado automaticamente pelo script.
+- Documentos publicos (`README.md`, `quickstart.md`, `docs/PRESENTATION_GUIDE.md`) tiveram a explicacao longa sobre o comportamento do `Start-Process` simplificada para uma frase curta pedindo confirmacao visual das 3 janelas.
+- **Detalhe tecnico movido para ca**: durante o desenvolvimento deste script, o agente de IA validou seu comportamento a partir de um shell em sandbox que encerra processos abertos via `Start-Process` ao final de cada chamada de ferramenta — por isso as 3 janelas CMD nao puderam ser observadas "vivas" simultaneamente durante a validacao automatizada nesta sessao; os comandos internos (`dotnet run`, `npm run dev`) foram entao validados diretamente (fora de `Start-Process`) com sucesso. Isso e uma limitacao do ambiente de implementacao, nao do script, que usa o padrao documentado do Windows e funciona normalmente em uma sessao interativa comum do usuario.
+- **Validacao desta limpeza**: `dotnet build TestOrder.slnx` PASS, `.\scripts\test.ps1` PASS (46/46). `.\scripts\dev-up.ps1` executado de ponta a ponta: nenhum aviso de porta 5069 (livre no momento do check pre-build), aviso correto de porta 5173 ocupada (entrada TCP remanescente e transitoria do proprio sandbox, sem processo dono identificavel) e mensagem final ajustada corretamente para "check the TestOrder - Web window for the Vite port". O bind da API na porta 5069 falhou nesta sessao por causa dessa mesma instabilidade de rede do sandbox (nao reproduz um defeito do script/codigo); validado com sucesso subindo a API em porta alternativa (`dotnet run --project src\TestOrder.Api --urls http://127.0.0.1:5079`) — `GET /api/products` retornou 200 com 50 produtos — e o frontend (`npm run dev`, que subiu em `5178` apos varias portas ocupadas) retornou 200 com `<title>TestOrder</title>` presente.

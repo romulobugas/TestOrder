@@ -22,7 +22,7 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 1. Base, modelo e listagem de pedidos. **(concluido)**
 2. Criacao de pedidos com reserva concorrente. **(concluido)**
 3. Faturamento por periodo. **(concluido)**
-4. Tela React.
+4. Tela React. **(concluido)**
 5. Microservico Node e outbox.
 6. README, AI_NOTES e decisoes finais.
 
@@ -55,6 +55,10 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 | 003 | `src/TestOrder.Api/Controllers/RevenueController.cs` | `GET /api/revenue/daily`, validacoes 400, preenchimento de dias zerados |
 | 003 | `src/TestOrder.Api/Controllers/RevenueQueries.cs` | SQL agregado unico, intervalo semiaberto UTC |
 | 003 | `tests/TestOrder.Api.Tests/Integration/RevenueEndpointTests.cs` | 10 metodos de teste (14 casos) — agregacao, validacao, regressao (46 total na suite) |
+| 004 | `src/TestOrder.Web/src/App.jsx` | Estado local, listagem paginada, formulario, validacoes, tratamento 400/409 |
+| 004 | `src/TestOrder.Web/src/api.js` | Helper obrigatorio: `fetchProducts`, `fetchOrders`, `createOrder` |
+| 004 | `src/TestOrder.Web/vite.config.js` | Proxy `/api` -> `http://localhost:5069`, sem CORS no backend |
+| 004 | `src/TestOrder.Web/src/styles.css` | CSS proprio, responsivo, sem framework |
 
 ## Modulo 001 — roteiro de demo (5–10 min)
 
@@ -251,3 +255,92 @@ dotnet build TestOrder.slnx
 .\scripts\test.ps1
 dotnet test TestOrder.slnx
 ```
+
+## Modulo 004 — roteiro de demo (5–10 min)
+
+### Mensagem para a sala
+
+Primeira tela real do desafio: React + Vite consumindo a API existente, sem tocar em nenhum arquivo de `src/TestOrder.Api/`. Estado 100% local (`useState`/`useEffect`), sem Redux/Zustand/React Query, sem bibliotecas de UI pesadas — CSS proprio. O proxy do Vite evita CORS no backend.
+
+### Passos
+
+1. **Subir tudo com um comando**: `.\scripts\dev-up.ps1` — sobe MySQL, builda o backend, instala dependencias do frontend (primeira vez) e abre **3 janelas CMD separadas** (`TestOrder - MySQL`, `TestOrder - API`, `TestOrder - Web`), cada uma com seus logs em tempo real. Terminal principal mostra `http://localhost:5069` (backend) e `http://localhost:5173` (frontend).
+2. Abrir a URL do frontend no navegador (a janela "TestOrder - Web" confirma a porta exata caso `5173` esteja ocupada).
+3. **Tela operacional, nao landing page**: listagem de pedidos + formulario de criacao visiveis de cara.
+4. **Paginacao**: "anterior"/"proxima" e botao "atualizar".
+5. **Criar pedido valido**: selecionar produto + quantidade, "adicionar item", "criar pedido" — formulario limpa, mensagem de sucesso, pedido aparece na pagina 1.
+6. **Quantidade invalida**: tentar `0`, negativa, vazia ou texto no campo de quantidade — item nao entra no rascunho, mensagem inline.
+7. **Produto duplicado**: tentar adicionar o mesmo produto duas vezes — bloqueado com mensagem.
+8. **Erro 409 (estoque)**: adicionar item com quantidade absurda (ex.: `999999`) e criar — mensagem de conflito de estoque; formulario preservado.
+9. **Responsivo**: reduzir a janela (~375px) — layout empilha sem rolagem horizontal.
+10. **Build**: `npm run build` — gera `dist/`.
+11. **Regressao backend**: `.\scripts\test.ps1` — **46/46** intacto.
+
+### Trecho central (api.js)
+
+```javascript
+export async function createOrder({ customerName, items }) {
+  const response = await fetch('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customerName: customerName || null, items }),
+  });
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response));
+  }
+  return response.json();
+}
+```
+
+Sem classes, interfaces ou service layer generica — apenas 3 funcoes (`fetchProducts`, `fetchOrders`, `createOrder`).
+
+## Validacoes — Modulo 004
+
+| Validacao | Status | Evidencia |
+| --- | --- | --- |
+| `dotnet build TestOrder.slnx` (baseline) | PASS | Build sem erros antes do frontend |
+| `.\scripts\test.ps1` (baseline) | PASS | 46/46 antes do frontend |
+| `npm install` | PASS | 66 pacotes, 0 vulnerabilidades |
+| `npm run build` | PASS | `dist/` gerado (~150 KB JS / ~48 KB gzip) |
+| `package.json` sem dependencias proibidas | PASS | Apenas `react`, `react-dom`, `vite`, `@vitejs/plugin-react` |
+| `dotnet build` + `.\scripts\test.ps1` (regressao pos-frontend) | PASS | 46/46 — nenhum arquivo de backend alterado |
+| Proxy `/api/products` via Vite | PASS | 200, 50 produtos |
+| Proxy `/api/orders` paginado via Vite | PASS | 200, `totalCount`/`totalPages` coerentes |
+| `POST /api/orders` valido via proxy | PASS | 201 |
+| `POST /api/orders` produto duplicado via proxy | PASS | 400 + `{ "error": "..." }` |
+| `POST /api/orders` quantidade absurda via proxy | PASS | 409 + `{ "error": "..." }` |
+| Quantidade 0/negativa/vazia/nao numerica no formulario | PASS (revisao de codigo) | Validado em `App.jsx` — item nao entra no rascunho |
+| Produto duplicado bloqueado no rascunho | PASS | Confirmado em navegador real (Playwright/Chromium) — mensagem inline exibida |
+| Responsividade mobile (~375px), sem overflow do body | PASS | Confirmado em navegador real — `document.documentElement.scrollWidth === 375` (igual à viewport) |
+| Sem erro de console (desktop e mobile) | PASS | Confirmado em navegador real — nenhum `console.error`/`pageerror` |
+| Criar pedido válido logo após erro de produto duplicado (sem mensagem antiga) | PASS | Confirmado em navegador real — sucesso exibido, `itemError` não permanece visível |
+| `createdAt` exibido em UTC, sem deslocar dia por timezone local | PASS | Testado com timezone de navegador `Pacific/Kiritimati` (UTC+14); data renderizada igual ao valor UTC do backend |
+| `.\scripts\dev-up.ps1` abre 3 janelas CMD (MySQL/API/Web) sem erro | PASS | Script executa Docker + build + npm install condicional + aviso de porta ocupada sem lancar excecao |
+| Aviso de porta 5069 ocupada aparece antes do `dotnet build` | PASS | Mensagem especifica sobre risco de `dotnet build` falhar no Windows com o `.exe` da API em uso |
+| `GET http://localhost:5069/api/products` com servicos subidos via `dev-up.ps1` | PASS | 200, 50 produtos |
+| Frontend carrega com servicos subidos via `dev-up.ps1` | PASS | 200, `<title>TestOrder</title>` presente |
+| Tema escuro operacional aplicado (tokens `:root`) | PASS | `getComputedStyle(document.body).backgroundColor` = `rgb(23, 28, 23)` (`#171c17`) em navegador real |
+| `package.json`/`package-lock.json` inalterados apos ajuste visual | PASS | `git status --porcelain` sem mudancas; nenhuma ocorrencia de "playwright" em nenhum dos dois arquivos |
+| `npm run build` apos ajuste visual | PASS | `dist/` gerado, CSS ~6,6 KB / ~1,7 KB gzip |
+| `dotnet build` + `.\scripts\test.ps1` apos ajuste visual | PASS | 46/46 — nenhum arquivo de backend tocado |
+| Fluxo completo (duplicado bloqueia, sucesso limpa erro, mobile sem overflow) apos ajuste visual | PASS | Confirmado em navegador real (Playwright/Chromium temporario) |
+
+### Comandos de validacao final
+
+```powershell
+# Backend
+Get-Process TestOrder.Api -ErrorAction SilentlyContinue | Stop-Process -Force
+dotnet build TestOrder.slnx
+.\scripts\test.ps1
+
+# Frontend
+cd src/TestOrder.Web
+npm install
+npm run build
+```
+
+### Observacao operacional
+
+A validacao inicial de fluxo (201/400/409) foi confirmada via chamadas HTTP diretas ao proxy do Vite. Numa correcao posterior (overflow mobile, `itemError` residual, `formatDate` em UTC), a validacao foi refeita com um navegador real headless (Playwright/Chromium, instalado apenas de forma temporaria e removido ao final — nao consta em `package.json`), cobrindo: ausencia de erro de console em desktop/mobile, ausencia de overflow horizontal do body em 375px, bloqueio de produto duplicado, criacao de pedido apos esse bloqueio sem mensagem antiga residual, e formatacao de data em UTC com timezone de navegador alterado. Ainda assim, recomenda-se repetir o checklist do `quickstart.md` manualmente antes da apresentacao para os itens nao cobertos por automacao (ex.: leitura visual subjetiva do layout).
+
+Em uma sessao PowerShell normal, o script abre tres janelas CMD. Antes da apresentacao, confirme visualmente que as janelas `TestOrder - MySQL`, `TestOrder - API` e `TestOrder - Web` permaneceram abertas.
