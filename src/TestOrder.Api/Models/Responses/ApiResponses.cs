@@ -19,3 +19,12 @@ public record PagedOrdersResponse(
     IReadOnlyList<OrderResponse> Items);
 
 public record ErrorResponse(string Error);
+
+public record RevenueDayResponse(string Date, decimal Revenue, int OrderCount);
+
+public record DailyRevenueResponse(
+    string StartDate,
+    string EndDate,
+    decimal TotalRevenue,
+    int TotalOrders,
+    IReadOnlyList<RevenueDayResponse> Days);

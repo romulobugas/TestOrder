@@ -21,7 +21,7 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 
 1. Base, modelo e listagem de pedidos. **(concluido)**
 2. Criacao de pedidos com reserva concorrente. **(concluido)**
-3. Faturamento por periodo.
+3. Faturamento por periodo. **(concluido)**
 4. Tela React.
 5. Microservico Node e outbox.
 6. README, AI_NOTES e decisoes finais.
@@ -52,6 +52,9 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 | 002 | `src/TestOrder.Api/Data/Seed/InventoryUnitsBackfill.cs` | Backfill idempotente ~237k unidades em dev |
 | 002 | `src/TestOrder.Api/Migrations/20260703184137_AddInventoryAndOutbox.cs` | Schema: inventory_units, reservas, outbox, customer_name |
 | 002 | `tests/TestOrder.Api.Tests/Integration/CreateOrderEndpointTests.cs` | 15 testes POST + regressao smoke (32 total na suite) |
+| 003 | `src/TestOrder.Api/Controllers/RevenueController.cs` | `GET /api/revenue/daily`, validacoes 400, preenchimento de dias zerados |
+| 003 | `src/TestOrder.Api/Controllers/RevenueQueries.cs` | SQL agregado unico, intervalo semiaberto UTC |
+| 003 | `tests/TestOrder.Api.Tests/Integration/RevenueEndpointTests.cs` | 10 metodos de teste (14 casos) — agregacao, validacao, regressao (46 total na suite) |
 
 ## Modulo 001 — roteiro de demo (5–10 min)
 
@@ -170,3 +173,81 @@ dotnet test TestOrder.slnx
 ### Observacao operacional
 
 No Windows, encerrar a API antes de `dotnet build`/`dotnet test` quando ela foi iniciada com `dev-up.ps1` ou `dotnet run` — o executavel fica em uso e o build falha.
+
+## Modulo 003 — roteiro de demo (5 min)
+
+### Mensagem para a sala
+
+"Faturamento" aqui e estritamente bruto — soma de `quantity * unitPrice` dos itens de pedidos com status `created`, **nao** e nota fiscal, pagamento ou baixa financeira. O endpoint e leitura pura: nenhuma tabela nova, nenhuma alteracao em pedidos/reservas/estoque. Uma unica consulta SQL agregada por dia; os dias sem pedido sao preenchidos com zero na camada C#.
+
+### Passos
+
+1. **Subir ambiente**: `.\scripts\dev-up.ps1` (nenhuma migration nova neste modulo).
+2. **Intervalo com pedidos (200)**:
+   ```powershell
+   curl -s -w "`nHTTP:%{http_code}`n" "http://localhost:5069/api/revenue/daily?startDate=2026-01-01&endDate=2026-01-31"
+   ```
+   Apontar `days` com 31 entradas, `totalRevenue`/`totalOrders` = soma dos dias.
+3. **Intervalo sem pedidos (200 zerado)**:
+   ```powershell
+   curl -s -w "`nHTTP:%{http_code}`n" "http://localhost:5069/api/revenue/daily?startDate=2099-01-01&endDate=2099-01-07"
+   ```
+4. **Erro 400 (data invalida)**:
+   ```powershell
+   curl -s -w "`nHTTP:%{http_code}`n" "http://localhost:5069/api/revenue/daily?startDate=2026-13-40&endDate=2026-01-31"
+   ```
+5. **SQL de conferencia**:
+   ```sql
+   SELECT DATE(o.created_at) AS day, SUM(oi.quantity * oi.unit_price) AS revenue, COUNT(DISTINCT o.id) AS order_count
+   FROM orders o
+   INNER JOIN order_items oi ON oi.order_id = o.id
+   WHERE o.status = 'created'
+     AND o.created_at >= '2026-01-01'
+     AND o.created_at < '2026-02-01'
+   GROUP BY DATE(o.created_at);
+   ```
+6. **Testes**: `.\scripts\test.ps1` — **46/46**.
+
+### Trecho SQL central (RevenueQueries.cs)
+
+```sql
+SELECT DATE(o.created_at) AS Date,
+       SUM(oi.quantity * oi.unit_price) AS Revenue,
+       COUNT(DISTINCT o.id) AS OrderCount
+FROM orders o
+INNER JOIN order_items oi ON oi.order_id = o.id
+WHERE o.status = 'created'
+  AND o.created_at >= @StartUtc
+  AND o.created_at < @EndExclusiveUtc
+GROUP BY DATE(o.created_at)
+```
+
+Intervalo **semiaberto** (`>= start`, `< end+1dia`) evita depender de fracao de segundo no limite superior; dias ausentes no resultado sao preenchidos com zero em C#, iterando de `startDate` a `endDate`.
+
+## Validacoes — Modulo 003
+
+| Validacao | Status | Evidencia |
+| --- | --- | --- |
+| `dotnet build TestOrder.slnx` | PASS | Build sem erros |
+| `.\scripts\test.ps1` | PASS | 46/46 testes |
+| `dotnet test TestOrder.slnx` | PASS | Idem |
+| Nenhuma migration/schema novo | PASS | Leitura pura sobre `orders`/`order_items` |
+| Intervalo com pedidos → 200 | PASS | `days` cobre intervalo, valores agregados corretos |
+| Intervalo de 1 dia (`startDate == endDate`) → 200 com 1 item | PASS | `GetDailyRevenue_SingleDayRange_ReturnsExactlyOneDay` |
+| Intervalo sem pedidos → 200 zerado | PASS | `GetDailyRevenue_EmptyRange_ReturnsZeroedDays` |
+| `totalRevenue`/`totalOrders` = soma de `days` | PASS | `GetDailyRevenue_TotalRevenue_MatchesSumOfDays` |
+| Parametros ausentes/invalidos/invertidos → 400 | PASS | `MissingStartDate`, `MissingEndDate`, `InvalidDate`, `StartAfterEnd` |
+| 366 dias aceito / 367 rejeitado | PASS | `GetDailyRevenue_RangeBoundary_AcceptsUpTo366AndRejectsOver` |
+| Considera pedidos do seed (nao so dados de teste) | PASS | `Regression_Modules001And002_StillWork` (intervalo `2025-07-02`–`2026-07-01`) |
+| GET modulo 001/002 e POST intactos | PASS | products, orders, orders/{id}, POST orders → 200/201 |
+| MVC mantido, sem Minimal APIs | PASS | `RevenueController` |
+| Sem N+1 | PASS | Uma unica query agregada em `RevenueQueries.cs` |
+
+### Comandos de validacao final
+
+```powershell
+Get-Process TestOrder.Api -ErrorAction SilentlyContinue | Stop-Process -Force
+dotnet build TestOrder.slnx
+.\scripts\test.ps1
+dotnet test TestOrder.slnx
+```
