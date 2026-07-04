@@ -483,3 +483,4 @@ $RECYCLE.BIN/
 
 # Frontend (src/TestOrder.Web) build output
 src/TestOrder.Web/dist/
+src/TestOrder.Web/.vite/

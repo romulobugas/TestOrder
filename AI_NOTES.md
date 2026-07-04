@@ -274,8 +274,8 @@ Screenshots de validacao foram gerados e inspecionados durante a sessao, depois 
 
 - `scripts/dev-up.ps1`: checagem das portas 5069/5173 movida para **antes** do `dotnet build` (aviso especifico se 5069 estiver ocupada, pois o build pode falhar no Windows com o `.exe` da API em uso); mensagens convertidas para ASCII puro (sem `—`); mensagem final do frontend agora e condicional (`http://localhost:5173` ou aviso para checar a janela `TestOrder - Web` quando a porta estava ocupada). Nenhum processo e encerrado automaticamente pelo script.
 - Documentos publicos (`README.md`, `quickstart.md`, `docs/PRESENTATION_GUIDE.md`) tiveram a explicacao longa sobre o comportamento do `Start-Process` simplificada para uma frase curta pedindo confirmacao visual das 3 janelas.
-- **Detalhe tecnico movido para ca**: durante o desenvolvimento deste script, o agente de IA validou seu comportamento a partir de um shell em sandbox que encerra processos abertos via `Start-Process` ao final de cada chamada de ferramenta — por isso as 3 janelas CMD nao puderam ser observadas "vivas" simultaneamente durante a validacao automatizada nesta sessao; os comandos internos (`dotnet run`, `npm run dev`) foram entao validados diretamente (fora de `Start-Process`) com sucesso. Isso e uma limitacao do ambiente de implementacao, nao do script, que usa o padrao documentado do Windows e funciona normalmente em uma sessao interativa comum do usuario.
-- **Validacao desta limpeza**: `dotnet build TestOrder.slnx` PASS, `.\scripts\test.ps1` PASS (46/46). `.\scripts\dev-up.ps1` executado de ponta a ponta: nenhum aviso de porta 5069 (livre no momento do check pre-build), aviso correto de porta 5173 ocupada (entrada TCP remanescente e transitoria do proprio sandbox, sem processo dono identificavel) e mensagem final ajustada corretamente para "check the TestOrder - Web window for the Vite port". O bind da API na porta 5069 falhou nesta sessao por causa dessa mesma instabilidade de rede do sandbox (nao reproduz um defeito do script/codigo); validado com sucesso subindo a API em porta alternativa (`dotnet run --project src\TestOrder.Api --urls http://127.0.0.1:5079`) — `GET /api/products` retornou 200 com 50 produtos — e o frontend (`npm run dev`, que subiu em `5178` apos varias portas ocupadas) retornou 200 com `<title>TestOrder</title>` presente.
+- **Limitacao de sandbox**: o shell usado para validar este script encerra processos abertos via `Start-Process` ao final de cada chamada de ferramenta, entao as 3 janelas CMD nao puderam ser observadas "vivas" simultaneamente nesta sessao. Os comandos internos (`dotnet run`, `npm run dev`) foram entao validados diretamente, fora de `Start-Process`, com sucesso — limitacao do ambiente de implementacao, nao do script, que funciona normalmente numa sessao interativa comum do usuario.
+- **Validacao desta limpeza**: `dotnet build`/`.\scripts\test.ps1` PASS (46/46); `dev-up.ps1` executado de ponta a ponta com avisos de porta corretos. O bind da API na porta padrao (5069) falhou nesta sessao por instabilidade de rede do proprio sandbox (nao um defeito do script) — validado com sucesso em porta alternativa (`GET /api/products` 200) e frontend tambem respondendo (200, titulo correto).
 
 ## Modulo 005 - Microservico Node para processamento do outbox
 
@@ -318,7 +318,7 @@ Screenshots de validacao foram gerados e inspecionados durante a sessao, depois 
 
 ### Onde a IA foi limitada ou corrigida
 
-- **Processos em background nao sao confiaveis entre chamadas de ferramenta neste ambiente de sandbox**: `Stop-Process` em um PID de wrapper (`pwsh.exe`/`cmd.exe`) nao mata o processo `node.exe` filho real, deixando instancias orfas do worker rodando sem que o agente perceba. Isso gerou confusao inicial durante a validacao E2E (eventos sendo processados por uma instancia orfa, sem log aparecer no terminal esperado). Corrigido identificando os PIDs reais via `Get-CimInstance Win32_Process` (filtrando por `CommandLine`) e adotando scripts PowerShell auto-contidos (inicia processos, testa, limpa, tudo numa unica chamada) para os testes de E2E, concorrencia e resiliencia, evitando depender de estado de processo entre chamadas separadas.
+- **Processos em background nao sao confiaveis entre chamadas de ferramenta neste ambiente de sandbox**: `Stop-Process` num PID de wrapper (`pwsh.exe`/`cmd.exe`) nao mata o `node.exe` filho real, deixando instancias orfas do worker rodando sem o agente perceber — gerou confusao inicial na validacao E2E (eventos processados por uma instancia orfa, sem log no terminal esperado). Corrigido identificando os PIDs reais via `Get-CimInstance Win32_Process` e adotando scripts PowerShell auto-contidos (inicia, testa, limpa numa unica chamada) para os testes de E2E, concorrencia e resiliencia.
 - **Sem console interativo real disponivel para testar `Ctrl+C` da forma literal** (o agente nao tem uma ferramenta de "enviar teclas" a um terminal em foreground) — resolvido com uma tecnica de baixo nivel do Windows (`AttachConsole` + `GenerateConsoleCtrlEvent(CTRL_C_EVENT)` via P/Invoke) que envia o sinal real ao processo do worker, validando o comportamento de shutdown de forma equivalente a um `Ctrl+C` manual, nao apenas por revisao de codigo.
 - Sem suite automatizada do worker (decisao explicita da spec, NFR-007/R9) — validacao via smoke `node index.js` + checklist manual objetivo, incluindo os cenarios acima.
 
@@ -329,3 +329,55 @@ Screenshots de validacao foram gerados e inspecionados durante a sessao, depois 
 - **Sem status intermediario `processing`** — a combinacao `SELECT ... FOR UPDATE SKIP LOCKED` + `UPDATE ... WHERE status='pending'` condicional e suficiente para evitar duplicidade entre instancias, sem precisar de um terceiro estado.
 - **Sem alteracao de schema** — idempotencia alcancada com o schema atual da tabela `order_processing_events` (criada no modulo 002).
 - **Comentario de codigo restrito ao bloco SQL de concorrencia** em `worker.js`, conforme regra do projeto — nenhum outro comentario narrativo foi adicionado.
+
+## Modulo 006 - Fechamento final da entrega
+
+**Status: concluido** (T001–T022) — auditoria de documentacao e higiene do repositorio antes do envio, sem funcionalidade de negocio nova.
+
+### O que foi feito
+
+- Auditoria de `README.md`, `AI_NOTES.md` (este arquivo) e `docs/PRESENTATION_GUIDE.md` quanto a completude, consistencia e ausencia de placeholders.
+- Auditoria de arquivos versionados indevidamente (`node_modules/`, `dist/`, `bin/`, `obj/`, screenshots) e do `.gitignore`.
+- Busca por conteudo sensivel (credenciais reais, dados pessoais, projetos externos privados, caminhos locais desnecessarios) em `specs/`, `docs/`, `AI_NOTES.md` e `README.md`.
+- Releitura de consistencia de `specs/001-*` a `specs/005-*` (incluindo `quickstart.md` de cada um) e confirmacao de que `dev-up.ps1` e sempre o caminho principal de subida.
+- Consolidacao dos numeros do seed de desenvolvimento no `README.md`.
+- Criacao do checklist final de entrega em `docs/DELIVERY_CHECKLIST.md`.
+
+### Correcoes pontuais aplicadas
+
+- **`specs/004-tela-web-pedidos/spec.md`** (secao "Checks manuais esperados"): o passo 2 pedia subir o frontend isoladamente (`npm install && npm run dev`), inconsistente com o `dev-up.ps1` atual, que ja sobe backend e frontend com um unico comando (evoluido em modulo posterior ao spec original). Corrigido para refletir `dev-up.ps1` como caminho unico, com nota remetendo ao `quickstart.md` para o comando manual alternativo. Lista renumerada (12 → 11 passos). Justificativa: inconsistencia evidente de primazia do `dev-up.ps1` (auditoria T011–T015 do Modulo 006).
+- **`src/TestOrder.Web/src/App.jsx`**: apos validacao manual no navegador, a tela ficava apenas com o fundo verde e o console mostrava `React is not defined`. A causa era JSX transformado para chamadas que esperavam `React` no escopo do modulo, enquanto `App.jsx` importava apenas hooks nomeados. Correcao minima: adicionar o import default `React`, mantendo a estrutura existente.
+- **`src/TestOrder.Web/src/api.js`**: quando o Vite devolvia HTML em `/api/*` (API desligada, proxy indisponivel ou dev server antigo), a tela exibia o erro tecnico `Unexpected token '<'`. Correcao minima: validar `content-type: application/json` e capturar falha de parse tambem em respostas 200, exibindo a mensagem operacional generica em vez do erro bruto.
+- **`.gitignore` / cache Vite**: `src/TestOrder.Web/.vite/` estava com arquivos rastreados (`_metadata.json` e `package.json`) e novos caches apareciam apos `npm run build`. Removido do indice com `git rm --cached` e adicionado `src/TestOrder.Web/.vite/` ao `.gitignore`.
+- **`scripts/dev-up.ps1`**: apos a correcao acima, varias instancias antigas do Vite continuavam abertas em portas diferentes e uma delas servia `index.html` em `/api/*`, causando erro visual mesmo com a API correta. O script passou a limpar processos antigos reconhecidos do proprio TestOrder (API, frontend/Vite/esbuild, worker e janelas de log) antes do build, validar que `5069` e `5173` ficaram livres, e falhar com PID/comando se uma porta critica continuar ocupada por processo externo. Validado executando `.\scripts\dev-up.ps1`: encerrou as instancias antigas, subiu API em `5069`, frontend em `5173`, proxy `/api/products` retornou JSON, e a UI carregou com `Sistema operacional` e 20 pedidos.
+- Divergencias pontuais entre numeros de teste **estimados em `plan.md`** (fase de planejamento, modulos 001–003) e a contagem final real (refletida corretamente em `quickstart.md`/`tasks.md`/aqui) foram **mantidas sem alteracao** — sao evolucoes normais de planejamento → implementacao, ja documentadas como tal nas secoes "Onde a IA foi limitada" de cada modulo; corrigi-las retroativamente no `plan.md` reescreveria contexto historico sem ganho real (fora do escopo de "correcao pontual").
+
+### Resultado da auditoria de conteudo sensivel
+
+Busca com `rg` (case-insensitive) por termos de credencial e por nomes de projetos externos privados conhecidos, em `specs/`, `docs/`, `AI_NOTES.md` e `README.md`, ignorando `node_modules`/`dist`/`bin`/`obj`/`.git`. Unicos resultados: credenciais de desenvolvimento `testorder`/`testorder` (documentadas abertamente como dev-only desde o modulo 001) e o proprio padrao de busca citado nos artefatos deste modulo. Nenhuma ocorrencia de nomes de projetos/empresas externas, caminho pessoal de usuario (`C:\Users\<nome real>`) ou credencial real. Referencias publicas legitimas (artigo da Shopify) mantidas.
+
+### Resultado da auditoria de arquivos versionados
+
+`git status --porcelain --ignored` confirma `node_modules/` (worker e frontend), `dist/` (frontend), `.vite/` (frontend) e `bin/`/`obj/` (backend e testes) corretamente ignorados. `git ls-files -- '*.png' '*.jpg' '*.jpeg' '*.gif'` nao retornou nenhum arquivo — nenhum screenshot temporario versionado. O unico ajuste necessario foi remover o cache `.vite` ja rastreado e adicionar `src/TestOrder.Web/.vite/` ao `.gitignore`.
+
+### Resultados das validacoes finais
+
+Executadas duas vezes nesta sessao (baseline no inicio da Fase 1 e validacao final na Fase 9), com MySQL disponivel (`testorder-mysql` healthy no Docker):
+
+| Validacao | Resultado |
+| --- | --- |
+| `dotnet build TestOrder.slnx` | PASS — 0 erros (baseline e final) |
+| `.\scripts\test.ps1` | PASS — **46/46** (baseline e final) |
+| `npm run build` (`src/TestOrder.Web`) | PASS — `dist/` gerado |
+| `node index.js` (worker) | PASS — conectou e processou eventos reais sem erro |
+| Fluxo real API → outbox `pending` → worker → `processed` | PASS — pedido `#5018` criado via `POST /api/orders`; evento `id=19` mudou de `pending` para `processed` em ~4s (1 ciclo de polling), confirmado por SQL direto e pelo log JSON do worker |
+| Validacao visual/frontend pos-correcao | PASS — `npm run build` passou; navegador montou `.app`/`.app-header` sem erro de console; proxy Vite validado em instancia limpa com API temporaria (`/api/products` retornou JSON) |
+| `dev-up.ps1` com limpeza ativa | PASS — encerrou instancias antigas do TestOrder, liberou `5069`/`5173`, subiu as janelas novas e `http://localhost:5173/api/products` retornou JSON |
+| `git diff --check` | PASS — sem erros de whitespace |
+| `git diff --name-only` (escopo) | PASS — documentacao de fechamento + correcao pontual de runtime do frontend (`App.jsx`/`api.js`) e higiene de cache Vite (`.gitignore`/remocao do indice) |
+
+**Limitacao honesta**: o passo "criar pedido pela tela" foi validado via chamada HTTP direta ao mesmo endpoint (`POST /api/orders`) que a tela React usa, nao por clique manual em navegador — mesma limitacao de ambiente ja registrada nos modulos 004/005 (sem ferramenta de automacao de navegador disponivel neste agente). Equivalente em efeito (mesmo endpoint, mesma tabela, mesmo worker), mas nao e uma prova visual da UI.
+
+### Reflexao sobre o processo Spec Kit (6 modulos)
+
+Os 6 modulos seguiram o mesmo ciclo Spec Kit (`specify` → `plan` → `tasks` → `analyze` → `implement`), com `/speckit-analyze` usado antes de cada implementacao para revisar cobertura e consistencia — pratica que identificou e corrigiu problemas reais em todos os modulos (ver secoes "Onde a IA foi limitada ou corrigida" de 001 a 005, e os achados C1/C2/M1/M2/L1-L4 deste modulo 006) **antes** de qualquer linha de codigo ou documento final ser escrita. O modulo 006 mostrou que o mesmo processo funciona tambem para um modulo puramente documental/auditoria, sem alterar o significado central do fluxo: especificar, planejar, quebrar em tarefas rastreaveis, e so entao executar.

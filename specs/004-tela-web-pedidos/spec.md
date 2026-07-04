@@ -227,18 +227,17 @@ Nenhum contrato existente é alterado; a tela é **somente consumidora** dos end
 
 ## Checks manuais esperados
 
-1. Subir backend: `.\scripts\dev-up.ps1` (porta `5069`).
-2. Subir frontend: `cd src/TestOrder.Web && npm install && npm run dev`.
-3. Abrir a URL do Vite no navegador — confirmar que a primeira tela já é a tela de pedidos (não uma landing page).
-4. Confirmar que a listagem de pedidos carrega com dados do seed (id, data, status, total, itens).
-5. Navegar para a próxima página e depois voltar para a anterior.
-6. Clicar em "atualizar" e confirmar nova busca.
-7. Abrir o formulário de criação, selecionar produto e quantidade, adicionar 2+ itens, remover 1.
-8. Enviar pedido válido (com e sem `customerName`) — confirmar `201`, mensagem de sucesso, formulário limpo, listagem atualizada.
-9. Tentar enviar pedido sem itens — confirmar bloqueio local ou mensagem de erro `400`.
-10. Tentar criar pedido com quantidade absurdamente alta (maior que o estoque) — confirmar mensagem de conflito `409` e que os dados do formulário não se perdem.
-11. Redimensionar a janela do navegador para largura mobile e confirmar que a tela permanece utilizável.
-12. Rodar `dotnet build TestOrder.slnx && .\scripts\test.ps1` no backend e confirmar que os **46/46** testes continuam passando (nenhuma regressão).
+1. Subir backend e frontend com um único comando: `.\scripts\dev-up.ps1` (abre backend na porta `5069` e frontend via Vite; instala dependências do frontend automaticamente na primeira execução — ver [`quickstart.md`](./quickstart.md) para o comando manual alternativo, caso necessário).
+2. Abrir a URL do Vite no navegador — confirmar que a primeira tela já é a tela de pedidos (não uma landing page).
+3. Confirmar que a listagem de pedidos carrega com dados do seed (id, data, status, total, itens).
+4. Navegar para a próxima página e depois voltar para a anterior.
+5. Clicar em "atualizar" e confirmar nova busca.
+6. Abrir o formulário de criação, selecionar produto e quantidade, adicionar 2+ itens, remover 1.
+7. Enviar pedido válido (com e sem `customerName`) — confirmar `201`, mensagem de sucesso, formulário limpo, listagem atualizada.
+8. Tentar enviar pedido sem itens — confirmar bloqueio local ou mensagem de erro `400`.
+9. Tentar criar pedido com quantidade absurdamente alta (maior que o estoque) — confirmar mensagem de conflito `409` e que os dados do formulário não se perdem.
+10. Redimensionar a janela do navegador para largura mobile e confirmar que a tela permanece utilizável.
+11. Rodar `dotnet build TestOrder.slnx && .\scripts\test.ps1` no backend e confirmar que os **46/46** testes continuam passando (nenhuma regressão).
 13. Rodar `npm run build` no frontend e confirmar que compila sem erros.
 14. Registrar comandos e resultados em `docs/PRESENTATION_GUIDE.md`.
 

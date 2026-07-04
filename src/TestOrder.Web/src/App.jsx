@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { fetchProducts, fetchOrders, createOrder } from './api.js';
 
 const PAGE_SIZE = 20;
