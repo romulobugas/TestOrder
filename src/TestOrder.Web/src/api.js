@@ -1,5 +1,18 @@
 const GENERIC_ERROR_MESSAGE = 'Não foi possível conectar ao servidor. Tente novamente.';
 
+async function readJsonResponse(response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error(GENERIC_ERROR_MESSAGE);
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(GENERIC_ERROR_MESSAGE);
+  }
+}
+
 async function parseErrorMessage(response) {
   try {
     const body = await response.json();
@@ -22,7 +35,7 @@ export async function fetchProducts() {
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response));
   }
-  return response.json();
+  return readJsonResponse(response);
 }
 
 export async function fetchOrders(page, pageSize = 20) {
@@ -35,7 +48,7 @@ export async function fetchOrders(page, pageSize = 20) {
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response));
   }
-  return response.json();
+  return readJsonResponse(response);
 }
 
 export async function createOrder({ customerName, items }) {
@@ -52,5 +65,5 @@ export async function createOrder({ customerName, items }) {
   if (!response.ok) {
     throw new Error(await parseErrorMessage(response));
   }
-  return response.json();
+  return readJsonResponse(response);
 }

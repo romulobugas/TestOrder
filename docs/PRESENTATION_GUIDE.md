@@ -24,7 +24,21 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 3. Faturamento por periodo. **(concluido)**
 4. Tela React. **(concluido)**
 5. Microservico Node e outbox. **(concluido)**
-6. README, AI_NOTES e decisoes finais.
+6. Fechamento final da entrega (README, AI_NOTES, checklist). **(concluido)**
+
+## Roteiro de demonstracao end-to-end (ordem recomendada)
+
+Sequencia unica sugerida para uma apresentacao corrida, cruzando os 5 modulos funcionais antes de entrar no detalhe modulo a modulo (secoes abaixo):
+
+1. **Subir tudo**: `.\scripts\dev-up.ps1` — unico comando, 4 janelas (MySQL/API/Web/Worker).
+2. **Listar pedidos** na tela React (`http://localhost:5173`) — paginacao, 5000 pedidos do seed.
+3. **Criar pedido** valido pela tela — reserva transacional, pedido aparece na pagina 1.
+4. **Estoque insuficiente** — tentar quantidade absurda para disparar 409 (mensagem de conflito, sem overbooking).
+5. **Faturamento por periodo** — `GET /api/revenue/daily` com um intervalo do seed.
+6. **Worker/outbox** — mostrar a janela `TestOrder - Worker` processando o evento do pedido criado no passo 3 (`pending` → `processed`).
+7. **Testes** — `.\scripts\test.ps1` (46/46).
+
+Tempo estimado: cada modulo tem um roteiro detalhado de 5–10 min nas secoes abaixo (001: 5–10, 002: 5–10, 003: 5, 004: 5–10, 005: 5–10); somados, a apresentacao completa cabe confortavelmente em **30–50 minutos** com perguntas.
 
 ## Referencias externas
 
@@ -431,3 +445,27 @@ git diff --name-only
 ### Observacao operacional
 
 Assim como no modulo 004, o ambiente de implementacao (sandbox) nao mantem processos em segundo plano nem janelas `Start-Process` vivas de forma confiavel entre chamadas de ferramenta separadas — isso exigiu adaptar a validacao de E2E, concorrencia e resiliencia para scripts PowerShell auto-contidos (inicia, testa e encerra os processos dentro de uma unica execucao). O teste de `Ctrl+C` foi feito enviando o sinal real do Windows (`CTRL_C_EVENT`) ao processo do worker via P/Invoke, equivalente a pressionar `Ctrl+C` manualmente em uma janela interativa — nao apenas uma revisao de codigo. Em uma sessao normal do usuario, as quatro janelas CMD abertas pelo `dev-up.ps1` funcionam normalmente e permanecem visiveis; confirme isso visualmente antes da apresentacao.
+
+## Modulo 006 — Fechamento final da entrega
+
+Este modulo **nao adiciona funcionalidade de negocio**. E uma auditoria final antes do envio/apresentacao: revisao de `README.md`, `AI_NOTES.md`, deste guia e das specs 001–005 quanto a consistencia, ausencia de conteudo sensivel e de artefatos de build versionados indevidamente, alem da consolidacao dos numeros do seed de desenvolvimento.
+
+O resultado completo da auditoria — incluindo status final de cada verificacao, comandos executados e limitacoes honestas — fica em [`docs/DELIVERY_CHECKLIST.md`](DELIVERY_CHECKLIST.md).
+
+### Validacoes — Modulo 006
+
+| Validacao | Status | Evidencia |
+| --- | --- | --- |
+| `dotnet build TestOrder.slnx` | PASS | 0 erros (baseline e final) |
+| `.\scripts\test.ps1` | PASS | **46/46** (baseline e final) |
+| `npm run build` (frontend) | PASS | `dist/` gerado; tela validada em navegador após correção pontual de runtime |
+| `.\scripts\dev-up.ps1` com limpeza ativa | PASS | Encerra instâncias antigas reconhecidas do TestOrder, garante `5069`/`5173` livres e sobe API/frontend com proxy funcionando |
+| `node index.js` (worker smoke) | PASS | Conectou ao MySQL, processou eventos reais |
+| Fluxo real API → outbox `pending` → worker → `processed` | PASS | Pedido `#5018`, evento `id=19` processado em ~4s |
+| `git diff --check` | PASS | Sem erros de whitespace |
+| Busca por termos sensiveis (`rg`) | PASS | Apenas credenciais dev `testorder`/`testorder`, ja documentadas |
+| Arquivos de build versionados | PASS | Nenhum (`node_modules`/`dist`/`bin`/`obj` ignorados) |
+| Screenshots/temporarios versionados | PASS | Nenhum |
+| Escopo (`git diff --name-only`) | PASS | Documentacao de fechamento + correcao pontual de runtime do frontend (`App.jsx`/`api.js`) e higiene de cache Vite (`.gitignore`/`.vite`) |
+
+Checklist completo, item a item, em [`docs/DELIVERY_CHECKLIST.md`](DELIVERY_CHECKLIST.md).

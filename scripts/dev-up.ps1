@@ -4,6 +4,10 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $RepoRoot
 
+$ApiDir = Join-Path $RepoRoot 'src\TestOrder.Api'
+$WebDir = Join-Path $RepoRoot 'src\TestOrder.Web'
+$WorkerDir = Join-Path $RepoRoot 'src\TestOrder.OrderProcessor'
+
 function Assert-DockerAvailable {
     $null = docker info 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -45,6 +49,118 @@ function Test-PortInUse {
     return ($null -ne $listeners)
 }
 
+function Test-CommandContains {
+    param(
+        [AllowNull()] [string]$CommandLine,
+        [Parameter(Mandatory)] [string]$Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CommandLine)) {
+        return $false
+    }
+
+    return ($CommandLine.IndexOf($Text, [StringComparison]::OrdinalIgnoreCase) -ge 0)
+}
+
+function Test-IsTestOrderDevProcess {
+    param(
+        [Parameter(Mandatory)] $ProcessInfo
+    )
+
+    $commandLine = $ProcessInfo.CommandLine
+    $name = $ProcessInfo.Name
+
+    if (Test-CommandContains $commandLine 'TestOrder - MySQL') { return $true }
+    if (Test-CommandContains $commandLine 'TestOrder - API') { return $true }
+    if (Test-CommandContains $commandLine 'TestOrder - Web') { return $true }
+    if (Test-CommandContains $commandLine 'TestOrder - Worker') { return $true }
+
+    if (Test-CommandContains $commandLine $ApiDir) { return $true }
+    if (Test-CommandContains $commandLine 'src\TestOrder.Api') { return $true }
+    if (Test-CommandContains $commandLine 'TestOrder.Api.dll') { return $true }
+    if (Test-CommandContains $commandLine 'TestOrder.Api.exe') { return $true }
+
+    if (($name -in @('node.exe', 'esbuild.exe', 'cmd.exe')) -and
+        (Test-CommandContains $commandLine $WebDir) -and
+        ((Test-CommandContains $commandLine 'vite') -or
+         (Test-CommandContains $commandLine 'esbuild') -or
+         (Test-CommandContains $commandLine 'node_modules'))) {
+        return $true
+    }
+
+    if (($name -in @('node.exe', 'cmd.exe')) -and
+        ((Test-CommandContains $commandLine $WorkerDir) -or
+         (Test-CommandContains $commandLine 'TestOrder.OrderProcessor'))) {
+        return $true
+    }
+
+    return $false
+}
+
+function Stop-ProcessTree {
+    param(
+        [Parameter(Mandatory)] [int]$ProcessId
+    )
+
+    if ($ProcessId -eq $PID) {
+        return
+    }
+
+    $children = Get-CimInstance Win32_Process -Filter "ParentProcessId=$ProcessId" -ErrorAction SilentlyContinue
+    foreach ($child in $children) {
+        Stop-ProcessTree -ProcessId $child.ProcessId
+    }
+
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($null -ne $process) {
+        Write-Host "Stopping previous TestOrder process: $($process.ProcessName) ($ProcessId)"
+        Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Stop-TestOrderDevProcesses {
+    Write-Host 'Cleaning previous TestOrder service processes...'
+
+    $currentProcessId = $PID
+    $processes = Get-CimInstance Win32_Process |
+        Where-Object { $_.ProcessId -ne $currentProcessId -and (Test-IsTestOrderDevProcess $_) } |
+        Sort-Object ProcessId -Unique
+
+    if ($null -eq $processes -or $processes.Count -eq 0) {
+        Write-Host 'No previous TestOrder service processes found.'
+        return
+    }
+
+    foreach ($processInfo in $processes) {
+        Stop-ProcessTree -ProcessId $processInfo.ProcessId
+    }
+
+    Start-Sleep -Milliseconds 800
+}
+
+function Assert-PortAvailable {
+    param(
+        [Parameter(Mandatory)] [int]$Port,
+        [Parameter(Mandatory)] [string]$ServiceName
+    )
+
+    $listeners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($null -eq $listeners) {
+        return
+    }
+
+    $owners = foreach ($listener in $listeners) {
+        $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId=$($listener.OwningProcess)" -ErrorAction SilentlyContinue
+        if ($null -ne $processInfo) {
+            "PID $($listener.OwningProcess): $($processInfo.CommandLine)"
+        } else {
+            "PID $($listener.OwningProcess): <process not found>"
+        }
+    }
+
+    throw "$ServiceName port $Port is still in use after cleanup. Close it manually and rerun dev-up.ps1. Owners: $($owners -join ' | ')"
+}
+
 function Start-ServiceWindow {
     param(
         [Parameter(Mandatory)] [string]$Title,
@@ -57,6 +173,10 @@ function Start-ServiceWindow {
     Start-Process -FilePath 'cmd.exe' -ArgumentList '/k', $commandLine -WorkingDirectory $WorkingDirectory | Out-Null
 }
 
+Stop-TestOrderDevProcesses
+Assert-PortAvailable -Port 5069 -ServiceName 'API'
+Assert-PortAvailable -Port 5173 -ServiceName 'Frontend'
+
 Assert-DockerAvailable
 
 Write-Host 'Starting MySQL with Docker Compose...'
@@ -67,20 +187,12 @@ if ($LASTEXITCODE -ne 0) {
 
 Wait-MySqlReady
 
-$ApiPortInUse = Test-PortInUse -Port 5069
-$WebPortInUse = Test-PortInUse -Port 5173
-
-if ($ApiPortInUse) {
-    Write-Warning 'Port 5069 is already in use. If this is a previous TestOrder API window, close it before rerunning; dotnet build may fail on Windows while the API executable is in use.'
-}
-
 Write-Host 'Building solution...'
 dotnet build TestOrder.slnx
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-$WebDir = Join-Path $RepoRoot 'src\TestOrder.Web'
 $WebNodeModules = Join-Path $WebDir 'node_modules'
 if (-not (Test-Path $WebNodeModules)) {
     Write-Host 'Frontend dependencies not found - running npm install (first run)...'
@@ -93,7 +205,6 @@ if (-not (Test-Path $WebNodeModules)) {
     }
 }
 
-$WorkerDir = Join-Path $RepoRoot 'src\TestOrder.OrderProcessor'
 $WorkerNodeModules = Join-Path $WorkerDir 'node_modules'
 if (-not (Test-Path $WorkerNodeModules)) {
     Write-Host 'Worker dependencies not found - running npm install (first run)...'
@@ -106,13 +217,6 @@ if (-not (Test-Path $WorkerNodeModules)) {
     }
 }
 
-if ($ApiPortInUse) {
-    Write-Warning 'Port 5069 is still in use - the API window may fail to bind.'
-}
-if ($WebPortInUse) {
-    Write-Warning 'Port 5173 is already in use - Vite will pick another port (check the "TestOrder - Web" window).'
-}
-
 Write-Host 'Opening service windows (MySQL logs, API, Web, Worker)...'
 
 Start-ServiceWindow -Title 'TestOrder - MySQL' -Command 'docker compose logs -f mysql'
@@ -123,11 +227,7 @@ Start-ServiceWindow -Title 'TestOrder - Worker' -Command 'node index.js' -Workin
 Write-Host ''
 Write-Host 'Services starting in separate windows:'
 Write-Host '  Backend:  http://localhost:5069'
-if ($WebPortInUse) {
-    Write-Host '  Frontend: check the "TestOrder - Web" window for the Vite port'
-} else {
-    Write-Host '  Frontend: http://localhost:5173'
-}
+Write-Host '  Frontend: http://localhost:5173'
 Write-Host '  MySQL:    localhost:3306'
 Write-Host '  Worker:   see "TestOrder - Worker" window'
 Write-Host ''
