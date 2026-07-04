@@ -2,16 +2,20 @@ namespace TestOrder.Api.Controllers;
 
 internal static class OrdersQueries
 {
-    public const string CountOrders = "SELECT COUNT(*) FROM orders";
+    // whereSql vem de OrdersController.BuildWhereClause — já parametrizado (@Status/@StartUtc/@EndExclusiveUtc),
+    // nunca concatena valor de usuário diretamente na string.
+    public static string BuildCountOrders(string whereSql) => $"SELECT COUNT(*) FROM orders o {whereSql}";
 
-    public const string PageOrders = """
+    public static string BuildPageOrders(string whereSql) => $"""
         SELECT o.id AS Id,
                o.created_at AS CreatedAt,
+               o.customer_name AS CustomerName,
                o.status AS Status,
                (SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0)
                 FROM order_items oi
                 WHERE oi.order_id = o.id) AS Total
         FROM orders o
+        {whereSql}
         ORDER BY o.created_at DESC, o.id DESC
         LIMIT @PageSize OFFSET @Offset
         """;
@@ -31,6 +35,7 @@ internal static class OrdersQueries
     public const string OrderById = """
         SELECT o.id AS Id,
                o.created_at AS CreatedAt,
+               o.customer_name AS CustomerName,
                o.status AS Status,
                (SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0)
                 FROM order_items oi
@@ -51,10 +56,10 @@ internal static class OrdersQueries
         """;
 }
 
-internal sealed record OrderPageRow(long Id, DateTime CreatedAt, string Status, decimal Total);
+internal sealed record OrderPageRow(long Id, DateTime CreatedAt, string? CustomerName, string Status, decimal Total);
 
 internal sealed record OrderItemRow(long OrderId, int ProductId, string ProductName, int Quantity, decimal UnitPrice);
 
-internal sealed record OrderDetailRow(long Id, DateTime CreatedAt, string Status, decimal Total);
+internal sealed record OrderDetailRow(long Id, DateTime CreatedAt, string? CustomerName, string Status, decimal Total);
 
 internal sealed record OrderItemDetailRow(int ProductId, string ProductName, int Quantity, decimal UnitPrice);

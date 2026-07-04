@@ -38,10 +38,15 @@ export async function fetchProducts() {
   return readJsonResponse(response);
 }
 
-export async function fetchOrders(page, pageSize = 20) {
+export async function fetchOrders(page, pageSize = 20, filters = {}) {
   let response;
   try {
-    response = await fetch(`/api/orders?page=${page}&pageSize=${pageSize}`);
+    const params = new URLSearchParams({ page, pageSize });
+    const { status, startDate, endDate } = filters;
+    if (status) params.set('status', status);
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    response = await fetch(`/api/orders?${params.toString()}`);
   } catch {
     throw new Error(GENERIC_ERROR_MESSAGE);
   }
@@ -59,6 +64,23 @@ export async function createOrder({ customerName, items }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ customerName: customerName || null, items }),
     });
+  } catch {
+    throw new Error(GENERIC_ERROR_MESSAGE);
+  }
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response));
+  }
+  return readJsonResponse(response);
+}
+
+export async function fetchDailyRevenue(startDate, endDate) {
+  let response;
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    const query = params.toString();
+    response = await fetch(`/api/revenue/daily${query ? `?${query}` : ''}`);
   } catch {
     throw new Error(GENERIC_ERROR_MESSAGE);
   }

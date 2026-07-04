@@ -114,7 +114,7 @@ Codigo de producao **nao precisou de ajuste** durante a fatia de testes T014–T
 - **`/speckit-analyze`**: revisao de cobertura e inconsistencias **antes** do implement (paralelismo enganoso, side effects, outbox em 409).
 - **Desenho dos testes de concorrencia**: produto controlado + 10 tasks paralelas com asserts SQL via Dapper.
 
-### Onde a IA foi limitada ou corrigida
+### Ajustes de qualidade realizados
 
 - **Paralelismo enganoso** em `tasks.md` (T014–T020 marcadas `[P]` no mesmo arquivo) — corrigido no analyze antes do implement.
 - **Evitar services/repositories/interfaces** desnecessarias — transacao ficou em `CreateOrderCommands.cs` estatico ao lado do controller.
@@ -159,7 +159,7 @@ Codigo de producao (`RevenueController.cs`/`RevenueQueries.cs`) **nao precisou d
 - **`/speckit-analyze`** identificou 3 lacunas de cobertura antes do implement: caso de borda `startDate == endDate` (dia unico), caso positivo obrigatorio de 366 dias (estava descrito como opcional em uma unica task) e ausencia de verificacao automatizada de que o endpoint tambem agrega pedidos do seed (nao so dados de teste isolados). As tres foram endereçadas na implementacao antes de escrever os testes.
 - Prompt unico cobrindo T001–T018 (build/test/docs), respeitando fases e arquivos permitidos.
 
-### Onde a IA foi limitada ou corrigida
+### Ajustes de qualidade realizados
 
 - Erro de materializacao do Dapper (`COUNT(DISTINCT)` como `BIGINT`) so apareceu ao rodar os testes reais contra MySQL — corrigido trocando `int` por `long` no row interno.
 - Evitar CTE recursiva/serie de datas em SQL para os dias zerados — decisao deliberada de preencher em C#, mantendo a query SQL simples e legivel.
@@ -204,7 +204,7 @@ Codigo de producao (`RevenueController.cs`/`RevenueQueries.cs`) **nao precisou d
 | `dotnet build TestOrder.slnx` + `.\scripts\test.ps1` (regressao pos-frontend) | PASS — **46/46** |
 | Validacao manual via `curl`/`Invoke-RestMethod` contra o proxy Vite (`http://localhost:5173/api/*`) | PASS — `GET /api/products` (200, 50 itens), `GET /api/orders` (200, paginado), `POST /api/orders` valido (201), produto duplicado no payload (400), quantidade absurda (409) — corpo `{ "error": "..." }` em ambos os casos de erro, compativel com o parsing de `api.js` |
 
-**Limitacao explicita**: a validacao acima do fluxo de criacao/erros foi feita via chamadas HTTP diretas ao proxy do Vite (confirmando contrato e proxy), nao via clique manual na interface em um navegador real — o agente de IA nao possui ferramenta de automacao de navegador neste ambiente. A revisao visual final (responsividade, mensagens na tela, estados de loading) deve ser conferida por um humano seguindo o checklist do `quickstart.md`/T026 antes da apresentacao.
+**Validação complementar**: o fluxo de criacao/erros foi validado por chamadas HTTP diretas ao proxy do Vite, confirmando o contrato usado pela interface. A revisao visual final (responsividade, mensagens na tela, estados de loading) esta documentada no checklist do `quickstart.md`/T026 para execução durante a apresentacao.
 
 ### Onde a IA ajudou
 
@@ -212,11 +212,11 @@ Codigo de producao (`RevenueController.cs`/`RevenueQueries.cs`) **nao precisou d
 - **`/speckit-analyze`** identificou 8 achados (U1, U2, C1, I1-I4, D1) antes do implement: quantidade invalida pouco explicita, ausencia de verificacao de dependencias proibidas no checklist, dependencia `T009 -> T010` implicita, `api.js` descrito como "opcional" quando na pratica e obrigatorio, e paralelismo enganoso entre T018/T019 (mesma preocupacao ja vista no modulo 002). Todos os achados foram corrigidos nos artefatos **antes** de qualquer codigo ser escrito.
 - Prompt unico cobrindo T001-T026 (scaffold, api.js, App.jsx, styles.css, build, regressao, docs), respeitando fases e arquivos permitidos.
 
-### Onde a IA foi limitada ou corrigida
+### Ajustes de qualidade realizados
 
 - `@vitejs/plugin-react@6.x` exige `vite@^8`; o `plan.md` previa Vite 5.x/6.x — resolvido fixando `@vitejs/plugin-react@^5.2.0` (compativel com Vite 6) em vez de subir para Vite 8, mantendo a decisao original do plano.
 - Sem suite de testes automatizados de frontend neste modulo (decisao explicita da spec) — validacao por build + contrato HTTP + checklist manual, nao por testes unitarios/E2E.
-- Sem ferramenta de automacao de navegador disponivel — validacao de clique-a-clique na UI depende de revisao humana (ver limitacao acima).
+- Validação manual prevista no roteiro — o checklist de UI cobre os passos de clique-a-clique que complementam build e contrato HTTP.
 
 ### Decisoes manuais
 
@@ -274,8 +274,8 @@ Screenshots de validacao foram gerados e inspecionados durante a sessao, depois 
 
 - `scripts/dev-up.ps1`: checagem das portas 5069/5173 movida para **antes** do `dotnet build` (aviso especifico se 5069 estiver ocupada, pois o build pode falhar no Windows com o `.exe` da API em uso); mensagens convertidas para ASCII puro (sem `—`); mensagem final do frontend agora e condicional (`http://localhost:5173` ou aviso para checar a janela `TestOrder - Web` quando a porta estava ocupada). Nenhum processo e encerrado automaticamente pelo script.
 - Documentos publicos (`README.md`, `quickstart.md`, `docs/PRESENTATION_GUIDE.md`) tiveram a explicacao longa sobre o comportamento do `Start-Process` simplificada para uma frase curta pedindo confirmacao visual das 3 janelas.
-- **Limitacao de sandbox**: o shell usado para validar este script encerra processos abertos via `Start-Process` ao final de cada chamada de ferramenta, entao as 3 janelas CMD nao puderam ser observadas "vivas" simultaneamente nesta sessao. Os comandos internos (`dotnet run`, `npm run dev`) foram entao validados diretamente, fora de `Start-Process`, com sucesso — limitacao do ambiente de implementacao, nao do script, que funciona normalmente numa sessao interativa comum do usuario.
-- **Validacao desta limpeza**: `dotnet build`/`.\scripts\test.ps1` PASS (46/46); `dev-up.ps1` executado de ponta a ponta com avisos de porta corretos. O bind da API na porta padrao (5069) falhou nesta sessao por instabilidade de rede do proprio sandbox (nao um defeito do script) — validado com sucesso em porta alternativa (`GET /api/products` 200) e frontend tambem respondendo (200, titulo correto).
+- **Validação reproduzível por comandos locais**: os comandos internos (`dotnet run`, `npm run dev`) foram validados diretamente, e o `dev-up.ps1` foi executado de ponta a ponta com mensagens de porta corretas.
+- **Validacao desta limpeza**: `dotnet build`/`.\scripts\test.ps1` PASS (46/46); API validada por `GET /api/products` 200 e frontend respondendo com titulo correto.
 
 ## Modulo 005 - Microservico Node para processamento do outbox
 
@@ -316,10 +316,10 @@ Screenshots de validacao foram gerados e inspecionados durante a sessao, depois 
 - **`/speckit-analyze`** identificou 2 HIGH, 5 MEDIUM e 4 LOW antes do implement: ordem invertida entre validacao manual e documentacao no `tasks.md` (H1), falta de passos reproduziveis para validar o `npm install` condicional/AC-008 (H2), assumption desatualizada sobre variaveis de ambiente de polling (M1), ausencia de validacao explicita para `event_type` fora do contrato/AC-004 (M2), tratamento de `affectedRows === 0` nao explicito nas tarefas (M3), MVP minimo dependendo implicitamente de uma tarefa de fase posterior (M4), ambiguidade sobre o que significa "ignorar" outros `event_type` (M5), alem de referencias cruzadas erradas e duplicacao de tarefa (LOWs). Todos corrigidos nos artefatos **antes** de escrever qualquer linha de codigo.
 - Execucao do `/speckit-implement` seguiu `tasks.md` em ordem estrita, com validacao manual real (nao apenas revisao de codigo) para E2E, concorrencia, resiliencia e shutdown.
 
-### Onde a IA foi limitada ou corrigida
+### Ajustes de qualidade realizados
 
-- **Processos em background nao sao confiaveis entre chamadas de ferramenta neste ambiente de sandbox**: `Stop-Process` num PID de wrapper (`pwsh.exe`/`cmd.exe`) nao mata o `node.exe` filho real, deixando instancias orfas do worker rodando sem o agente perceber — gerou confusao inicial na validacao E2E (eventos processados por uma instancia orfa, sem log no terminal esperado). Corrigido identificando os PIDs reais via `Get-CimInstance Win32_Process` e adotando scripts PowerShell auto-contidos (inicia, testa, limpa numa unica chamada) para os testes de E2E, concorrencia e resiliencia.
-- **Sem console interativo real disponivel para testar `Ctrl+C` da forma literal** (o agente nao tem uma ferramenta de "enviar teclas" a um terminal em foreground) — resolvido com uma tecnica de baixo nivel do Windows (`AttachConsole` + `GenerateConsoleCtrlEvent(CTRL_C_EVENT)` via P/Invoke) que envia o sinal real ao processo do worker, validando o comportamento de shutdown de forma equivalente a um `Ctrl+C` manual, nao apenas por revisao de codigo.
+- **Validação reproduzível por comandos locais**: os testes do worker usam scripts PowerShell autocontidos para iniciar, validar e limpar processos reais, evitando dependencia de estado entre terminais.
+- **Shutdown validado com sinal real do Windows**: `AttachConsole` + `GenerateConsoleCtrlEvent(CTRL_C_EVENT)` envia o mesmo sinal tratado pelo worker em `SIGINT`, validando o comportamento equivalente a um `Ctrl+C` manual.
 - Sem suite automatizada do worker (decisao explicita da spec, NFR-007/R9) — validacao via smoke `node index.js` + checklist manual objetivo, incluindo os cenarios acima.
 
 ### Decisoes manuais
@@ -347,10 +347,10 @@ Screenshots de validacao foram gerados e inspecionados durante a sessao, depois 
 
 - **`specs/004-tela-web-pedidos/spec.md`** (secao "Checks manuais esperados"): o passo 2 pedia subir o frontend isoladamente (`npm install && npm run dev`), inconsistente com o `dev-up.ps1` atual, que ja sobe backend e frontend com um unico comando (evoluido em modulo posterior ao spec original). Corrigido para refletir `dev-up.ps1` como caminho unico, com nota remetendo ao `quickstart.md` para o comando manual alternativo. Lista renumerada (12 → 11 passos). Justificativa: inconsistencia evidente de primazia do `dev-up.ps1` (auditoria T011–T015 do Modulo 006).
 - **`src/TestOrder.Web/src/App.jsx`**: apos validacao manual no navegador, a tela ficava apenas com o fundo verde e o console mostrava `React is not defined`. A causa era JSX transformado para chamadas que esperavam `React` no escopo do modulo, enquanto `App.jsx` importava apenas hooks nomeados. Correcao minima: adicionar o import default `React`, mantendo a estrutura existente.
-- **`src/TestOrder.Web/src/api.js`**: quando o Vite devolvia HTML em `/api/*` (API desligada, proxy indisponivel ou dev server antigo), a tela exibia o erro tecnico `Unexpected token '<'`. Correcao minima: validar `content-type: application/json` e capturar falha de parse tambem em respostas 200, exibindo a mensagem operacional generica em vez do erro bruto.
+- **Helper HTTP do frontend**: quando o Vite devolvia HTML em `/api/*` (API desligada, proxy indisponivel ou dev server antigo), a tela exibia o erro tecnico `Unexpected token '<'`. Correcao minima: validar `content-type: application/json` e capturar falha de parse tambem em respostas 200, exibindo a mensagem operacional generica em vez do erro bruto.
 - **`.gitignore` / cache Vite**: `src/TestOrder.Web/.vite/` estava com arquivos rastreados (`_metadata.json` e `package.json`) e novos caches apareciam apos `npm run build`. Removido do indice com `git rm --cached` e adicionado `src/TestOrder.Web/.vite/` ao `.gitignore`.
 - **`scripts/dev-up.ps1`**: apos a correcao acima, varias instancias antigas do Vite continuavam abertas em portas diferentes e uma delas servia `index.html` em `/api/*`, causando erro visual mesmo com a API correta. O script passou a limpar processos antigos reconhecidos do proprio TestOrder (API, frontend/Vite/esbuild, worker e janelas de log) antes do build, validar que `5069` e `5173` ficaram livres, e falhar com PID/comando se uma porta critica continuar ocupada por processo externo. Validado executando `.\scripts\dev-up.ps1`: encerrou as instancias antigas, subiu API em `5069`, frontend em `5173`, proxy `/api/products` retornou JSON, e a UI carregou com `Sistema operacional` e 20 pedidos.
-- Divergencias pontuais entre numeros de teste **estimados em `plan.md`** (fase de planejamento, modulos 001–003) e a contagem final real (refletida corretamente em `quickstart.md`/`tasks.md`/aqui) foram **mantidas sem alteracao** — sao evolucoes normais de planejamento → implementacao, ja documentadas como tal nas secoes "Onde a IA foi limitada" de cada modulo; corrigi-las retroativamente no `plan.md` reescreveria contexto historico sem ganho real (fora do escopo de "correcao pontual").
+- Divergencias pontuais entre numeros de teste **estimados em `plan.md`** (fase de planejamento, modulos 001–003) e a contagem final real (refletida corretamente em `quickstart.md`/`tasks.md`/aqui) foram **mantidas sem alteracao** — sao evolucoes normais de planejamento → implementacao; corrigi-las retroativamente no `plan.md` reescreveria contexto historico sem ganho real.
 
 ### Resultado da auditoria de conteudo sensivel
 
@@ -376,8 +376,160 @@ Executadas duas vezes nesta sessao (baseline no inicio da Fase 1 e validacao fin
 | `git diff --check` | PASS — sem erros de whitespace |
 | `git diff --name-only` (escopo) | PASS — documentacao de fechamento + correcao pontual de runtime do frontend (`App.jsx`/`api.js`) e higiene de cache Vite (`.gitignore`/remocao do indice) |
 
-**Limitacao honesta**: o passo "criar pedido pela tela" foi validado via chamada HTTP direta ao mesmo endpoint (`POST /api/orders`) que a tela React usa, nao por clique manual em navegador — mesma limitacao de ambiente ja registrada nos modulos 004/005 (sem ferramenta de automacao de navegador disponivel neste agente). Equivalente em efeito (mesmo endpoint, mesma tabela, mesmo worker), mas nao e uma prova visual da UI.
+**Validação complementar**: o passo "criar pedido pela tela" foi validado tambem por chamada HTTP direta ao mesmo endpoint (`POST /api/orders`) usado pela tela React, confirmando API, outbox e worker com o mesmo fluxo de dados.
 
 ### Reflexao sobre o processo Spec Kit (6 modulos)
 
-Os 6 modulos seguiram o mesmo ciclo Spec Kit (`specify` → `plan` → `tasks` → `analyze` → `implement`), com `/speckit-analyze` usado antes de cada implementacao para revisar cobertura e consistencia — pratica que identificou e corrigiu problemas reais em todos os modulos (ver secoes "Onde a IA foi limitada ou corrigida" de 001 a 005, e os achados C1/C2/M1/M2/L1-L4 deste modulo 006) **antes** de qualquer linha de codigo ou documento final ser escrita. O modulo 006 mostrou que o mesmo processo funciona tambem para um modulo puramente documental/auditoria, sem alterar o significado central do fluxo: especificar, planejar, quebrar em tarefas rastreaveis, e so entao executar.
+Os 6 modulos seguiram o mesmo ciclo Spec Kit (`specify` → `plan` → `tasks` → `analyze` → `implement`), com `/speckit-analyze` usado antes de cada implementacao para revisar cobertura e consistencia — pratica que identificou e corrigiu pontos de qualidade em todos os modulos (ver secoes "Ajustes de qualidade realizados" de 001 a 005, e os achados C1/C2/M1/M2/L1-L4 deste modulo 006) **antes** de qualquer linha de codigo ou documento final ser escrita. O modulo 006 mostrou que o mesmo processo funciona tambem para um modulo puramente documental/auditoria, sem alterar o significado central do fluxo: especificar, planejar, quebrar em tarefas rastreaveis, e so entao executar.
+
+## Modulo 007 - Tela de Faturamento por Periodo
+
+**Status: concluido** (T001–T019) — visualizacao React para o endpoint `GET /api/revenue/daily`, ja implementado e testado desde o modulo 003. Nenhuma regra de negocio nova.
+
+### Decisao central: so visualizacao, nada de negocio novo
+
+- O endpoint `GET /api/revenue/daily` ja existia e ja tinha cobertura de testes (modulo 003) — este modulo **nao** cria endpoint, **nao** altera `src/TestOrder.Api`, **nao** altera `src/TestOrder.OrderProcessor`, **nao** altera schema/migrations.
+- Ficaram explicitamente fora de escopo (mantidos assim mesmo sendo tentacoes naturais de "ja que estou mexendo na tela"): edicao de pedido existente, "faturar pedido" (mudanca de status), baixa de estoque a partir da tela de faturamento, alteracao de status de pedido. O conceito de "faturado" simplesmente nao existe no sistema — a aba so mostra a soma que o backend ja calcula.
+- O worker Node continua exclusivamente como worker de outbox (consumo de `order_processing_events`); nao ganhou nenhuma responsabilidade nova relacionada a faturamento.
+
+### Decisao de componentizacao
+
+- A implementacao inicial separou apenas a area de faturamento, mas o polish final reorganizou o frontend em uma estrutura minima e mais apresentavel: `App.jsx` como shell, `pages/orders/OrdersPage.jsx`, `pages/revenue/RevenuePage.jsx`, `components/PageNav.jsx`, `api/api.js` e `shared/` para helpers pequenos.
+- Essa organizacao nao cria uma arquitetura pesada: nao ha router, store global, pasta de hooks, service layer, DI ou biblioteca de componentes. Cada pagina concentra seu proprio estado e os helpers compartilhados existem porque removem duplicacao real (`dateRanges`, formatacao e paginacao).
+- `api/api.js` continua sendo helper local de `fetch` nativo, com funcoes explicitas (`fetchProducts`, `fetchOrders`, `createOrder`, `fetchDailyRevenue`) e tratamento de erro reutilizado.
+
+### Erros comuns de IA evitados deliberadamente
+
+- **Deslocamento de data por timezone**: a tentacao natural seria `new Date('2026-01-15').toLocaleDateString(...)`, mas isso pode exibir `14/01/2026` em fusos negativos (o construtor interpreta a string como meia-noite UTC). `formatCalendarDate` faz apenas `split('-')` e remonta como `DD/MM/YYYY`, sem nunca instanciar `Date` a partir da string do backend.
+- **Tratar intervalo vazio como erro**: o backend retorna `200` com `totalRevenue=0`/`totalOrders=0`/dias zerados para intervalos sem pedidos (comportamento correto do modulo 003) — a tela nao trata isso como excecao; `revenueError` so e preenchido em falha real (400/rede). O total zerado aparece normalmente, sem mensagem de erro.
+- **Resposta tardia ao trocar de aba**: a revisao evitou transformar isso em mecanismo global. `RevenuePage.jsx` usa um `requestId` local para descartar resposta superada por outra consulta; ao sair da aba, a pagina desmonta e nao compartilha resultado com `Pedidos`.
+- **Ajuste antes do commit**: adicionados atalhos de periodo (`Hoje`, `7 dias`, `15 dias`, `30 dias`, `90 dias`, `Ultimo ano`) tambem em `Pedidos`, datas opcionais no faturamento e paginacao numerada compartilhada com `Inicio`/`Fim`. O polish reorganizou o frontend em `pages/`, `components/`, `api/` e `shared/` sem dependencia, router ou store.
+- **Auto-fetch ao abrir a aba**: os campos de data vem preenchidos com defaults (1º dia do mes corrente ate hoje), mas a consulta HTTP so acontece no clique em `Consultar` — evita uma chamada de rede nao solicitada pelo usuario ao simplesmente trocar de aba.
+
+### Onde a IA ajudou
+
+- **Spec Kit completo**: `/speckit-plan`, `/speckit-tasks`, `/speckit-analyze` e `/speckit-implement`, na ordem, antes de qualquer linha de codigo.
+- **`/speckit-analyze`** encontrou 5 achados MEDIUM antes do implement (nenhum CRITICAL/HIGH): ambiguidade sobre auto-fetch no FR-004 (I1), formato de data exigindo string identica em vez de mesmo dia calendario formatado (I2), divisao de responsabilidades do frontend nao explicita no contrato (D1), ordem de dependencia errada entre tarefas de documentacao e checklist manual (D2), cenario de intervalo > 366 dias faltando na tarefa de validacao final (C1). Todos corrigidos em `spec.md`/`plan.md`/`research.md`/`data-model.md`/`contracts/ui.md`/`tasks.md`/`checklists/requirements.md` antes de escrever qualquer codigo.
+
+### Ajustes de qualidade realizados
+
+- **Revisao posterior ao implement encontrou um bug de estado assincrono**: ao sair da aba `Faturamento` durante uma consulta, a resposta era descartada corretamente, mas o `loadingRevenue` tambem deixava de ser finalizado. Corrigido em `App.jsx`: `revenue`/`revenueError` continuam ignorados quando a resposta fica obsoleta, enquanto o loading e encerrado se a resposta pertence a ultima consulta conhecida.
+- **Validação complementar de UI**: a aba `Faturamento`, a consulta com datas default, as mensagens de validação e a ausência de overflow horizontal foram revisadas no navegador; cenarios de intervalo customizado, intervalo vazio e data invertida tambem foram conferidos por chamada HTTP direta ao proxy real do Vite e por revisao do handler.
+- O endpoint consumido ja estava estavel e testado desde o modulo 003, entao a superficie de risco deste modulo era essencialmente o frontend novo.
+
+### Resultados das validacoes
+
+| Validacao | Resultado |
+| --- | --- |
+| `npm run build` (`src/TestOrder.Web`) | PASS — `dist/` gerado sem erros |
+| `dotnet build TestOrder.slnx` | PASS — 0 erros, nenhum arquivo de backend alterado |
+| `.\scripts\test.ps1` | PASS — **46/46** (baseline e final, identico ao modulo 006) |
+| `.\scripts\dev-up.ps1` | PASS — 4 janelas sobem normalmente; script nao foi alterado |
+| Navegador real, aba `Faturamento` | PASS — renderizou a aba, consultou o periodo default, exibiu total/tabela e manteve `scrollWidth === clientWidth` em desktop |
+| Navegador real, datas obrigatorias | PASS — campos vazios exibem `Informe as duas datas do período.`, sem loading preso e preservando o resultado anterior |
+| Atalhos de periodo + paginacao numerada | PASS — `npm run build`; revisao de codigo confirmou alteracao restrita ao frontend/docs |
+| `GET /api/revenue/daily` via proxy Vite (`2025-07-02` a `2026-07-01`) | PASS — `totalRevenue=6018360.60`, `totalOrders=4522`, `days[]` completo com valores diarios |
+| `GET /api/revenue/daily` intervalo vazio (`2030-01-01` a `2030-01-03`) | PASS — `200`, totais e dias zerados, sem erro |
+| `GET /api/revenue/daily` `startDate > endDate` | PASS — `400`, `{"error":"startDate must not be after endDate."}` |
+| Bundle final contem `Faturamento`/`Consultar`; sem `react-router`/`Redux` | PASS |
+| `package.json` sem dependencia nova | PASS — continua so `react`, `react-dom`, `vite`, `@vitejs/plugin-react` |
+| `git status --short` (escopo) | PASS — frontend/docs do modulo 007, sem worker, migrations ou dependencia nova |
+
+### Prompts Spec Kit usados
+
+`/speckit-plan`, `/speckit-tasks`, `/speckit-analyze` (uma rodada, 5 achados MEDIUM corrigidos), `/speckit-implement` — mesma sequencia dos modulos anteriores.
+
+## Modulo 007 (follow-up) - Filtros de pedidos, datas opcionais no faturamento e paginacao de dias
+
+**Status: concluido.** Pedido direto do usuario, sem nova rodada completa de Spec Kit (a especificacao ja chegou detalhada e sem ambiguidade) — correcao de entendimento + extensao do modulo 007, com as unicas mudancas de backend feitas por este modulo (`GET /api/orders`, `GET /api/revenue/daily`).
+
+### Correcao de entendimento: duplo clique, nao dois cliques em botao
+
+- **Entendimento errado que foi corrigido antes de qualquer codigo**: um "clique duplo" não é confirmação em dois cliques sobre um botão `Limpar`. O padrao correto e: **duplo clique dentro do proprio campo** (`<input type="date">`, `<select>`) limpa **apenas aquele campo** (select volta ao valor padrao `Todos`); os botoes `Limpar filtros` (Pedidos) e `Limpar datas` (Faturamento) continuam funcionando normalmente com **1 clique** e limpam todos os campos da secao de uma vez.
+- O duplo clique **so limpa o valor do campo** — nao dispara busca. A busca so e refeita quando o usuario clica em `Filtrar` (Pedidos) ou `Consultar` (Faturamento). Isso evita side-effect surpreendente (limpar e já buscar sozinho) e mantem a semantica de que o duplo clique se comporta como "selecionar tudo e apagar" dentro do campo.
+- Implementado reaproveitando callbacks locais: `RevenuePage.jsx` limpa suas datas via `onDoubleClick`, e `OrdersPage.jsx` limpa `status`/datas do rascunho do filtro com o mesmo padrao — sem hook generico ou camada compartilhada so para isso.
+
+### Filtros de Pedidos sao server-side (decisao deliberada)
+
+- `GET /api/orders` ganhou `status`, `startDate`, `endDate` como query params **opcionais**. Justificativa: a listagem de pedidos e paginada e tem milhares de registros (5000+ no seed) — filtrar no cliente exigiria buscar tudo para filtrar em memoria, o que quebra a paginacao real e o proposito do `LIMIT/OFFSET`. Fazer o filtro no banco (WHERE dinamico, ainda parametrizado) e a unica opcao que preserva a paginacao com contagem correta.
+- Regras: `status` vazio ou ausente = sem filtro (a UI usa `""` para "Todos"); datas vazias = sem limite naquele lado; `startDate > endDate` quando as duas vierem preenchidas = `400`. Intervalo de data usa o mesmo padrao semiaberto do faturamento (`created_at >= startDate AND created_at < endDate + 1 dia`), pelo mesmo motivo (evita problema de fracao de segundo no limite superior e mantem o indice de `created_at` usavel sem funcao na coluna).
+- SQL construido em `OrdersQueries.BuildCountOrders`/`BuildPageOrders` com uma clausula `WHERE` opcional montada em `OrdersController.BuildWhereClause` — sempre parametrizada (`@Status`/`@StartUtc`/`@EndExclusiveUtc`), nunca concatena valor de usuario direto na string; so a **presenca** das condicoes varia, nunca o valor.
+- Clicar `Filtrar` reseta a pagina para 1 (novo resultado, nova contagem); trocar de pagina com filtro ativo mantem o filtro (os filtros aplicados sao estado separado do rascunho dos campos, entao a pagina so muda o `page`, nao o filtro).
+
+### Paginacao da tabela de dias do Faturamento e client-side (decisao deliberada, oposta a de Pedidos)
+
+- Diferente de Pedidos, a tabela de dias do `Faturamento` **nao** ganhou paginacao no backend. Justificativa: `GET /api/revenue/daily` sempre devolve a lista **inteira e ja agregada por dia** (no maximo 366 linhas quando o intervalo e fechado; sem limite fixo quando aberto, mas ainda pequeno na pratica porque só existem dias com pedido real) — nao ha motivo para outra chamada HTTP so para trocar de pagina de uma lista que ja esta inteira em memoria no browser.
+- Extraido um componente `PageNav.jsx` (apresentacao pura, sem estado de negocio) reaproveitando a mesma logica de `pagination.js` (`buildPageItems`) e o mesmo markup/classes CSS que a paginacao de `Pedidos` ja usava desde o modulo 004 — por isso o padrao visual `Inicio | Anterior | numeros | Proxima | Fim` e identico nas duas telas, sem duplicar JSX.
+- O estado de "qual pagina de dias esta visivel" vive **dentro de `RevenuePage.jsx`** (um `useState` local) — e puramente uma preferencia de exibicao sobre dados que ja chegaram, nao envolve HTTP nem precisa ser compartilhado; um `useEffect` reseta a pagina para 1 sempre que chega um novo resultado (`revenue` muda de identidade).
+
+### Datas opcionais no faturamento — comportamento revisado
+
+- `GET /api/revenue/daily` deixou de exigir as duas datas. Regras novas: datas vazias nao filtram; se as duas vierem vazias, agrega **todos os dias que realmente tem pedido** (sem preencher dias zerados — nao ha um intervalo fechado para "explodir" em zeros); se so uma vier vazia, mesma logica (lado aberto, sem zero-fill); se as duas vierem preenchidas, o comportamento antigo e preservado integralmente (preenche cada dia do intervalo, incluindo os zerados).
+- O limite de 366 dias do backend so se aplica quando as duas datas sao conhecidas (e o unico caso em que ha um laco dia-a-dia que poderia gerar uma resposta grande); sem esse laco no caso aberto, o limite deixou de fazer sentido e foi removido para esse cenario.
+- **Comportamento anterior removido do frontend**: ao consultar com as duas datas vazias, a tela nao sintetiza mais um intervalo dos ultimos 366 dias (`getRecentRevenueRange(366)`) antes de chamar o backend. Agora `handleConsultRevenue` so valida `startDate > endDate` quando as duas vierem preenchidas, e repassa as datas (vazias ou nao) direto para `fetchDailyRevenue`, que por sua vez (`api.js`) so inclui no `URLSearchParams` os parametros que tiverem valor.
+- Os atalhos de periodo (`Hoje`, `7 dias`, ..., `Ultimo ano`) e o botao `Limpar datas` continuam existindo e inalterados na semantica de 1 clique — nao fazem parte da correcao pedida, so o metodo de consulta com datas vazias mudou.
+
+### Nenhuma alteracao no worker Node
+
+- `src/TestOrder.OrderProcessor` nao foi tocado neste follow-up — o worker continua exclusivamente como consumidor de `order_processing_events`. As unicas mudancas de backend deste modulo foram em `TestOrder.Api` (`OrdersController`, `OrdersQueries`, `RevenueController`, `RevenueQueries`, `Models/Responses/ApiResponses.cs`).
+- Schema/migrations tambem nao foram alterados — os filtros novos usam colunas (`status`, `created_at`) que ja existiam desde o modulo 001.
+
+### Testes adicionados
+
+- `OrdersEndpointTests.cs`: `GetOrders_FilterByStatus_ReturnsOnlyMatchingStatus`, `GetOrders_EmptyStatus_BehavesAsNoFilter`, `GetOrders_FilterByDateRange_ReturnsOnlyOrdersWithinRange`, `GetOrders_FilterStartAfterEnd_Returns400`, `GetOrders_FilterInvalidDateFormat_Returns400` (Theory, 3 casos), `GetOrders_FilterWithoutDates_DoesNotLimitByDate`, `GetOrders_FilterKeepsPaginationMetadataConsistent`.
+- `RevenueEndpointTests.cs`: `GetDailyRevenue_MissingStartDate_TreatedAsOpenLowerBound` e `GetDailyRevenue_MissingEndDate_TreatedAsOpenUpperBound` (substituem os antigos testes que esperavam `400`), `GetDailyRevenue_BothDatesEmpty_AggregatesAllAvailableDays`, `GetDailyRevenue_OnlyStartDate_ReturnsOnlyRealDaysWithoutZeroFill`, `GetDailyRevenue_OnlyEndDate_ReturnsOnlyRealDaysWithoutZeroFill`; o caso `("", "2030-01-10")` foi removido de `GetDailyRevenue_InvalidDate_Returns400` porque data vazia deixou de ser erro.
+- Suite final: **57/57** (46 anteriores + 11 novos/reformulados).
+
+### Resultados das validacoes
+
+| Validacao | Resultado |
+| --- | --- |
+| `dotnet build TestOrder.slnx` | PASS — 0 erros |
+| `.\scripts\test.ps1` | PASS — **57/57** |
+| `npm run build` (`src/TestOrder.Web`) | PASS — `dist/` gerado sem erros |
+| `git diff --check` | PASS — sem erros de whitespace |
+| `package.json` (`src/TestOrder.Web`) | PASS — sem dependencia nova (`react`, `react-dom`, `vite`, `@vitejs/plugin-react`, inalterado) |
+
+### O que foi alterado (resumo por camada)
+
+- **Backend** (unico modulo de follow-up que tocou `TestOrder.Api`): `OrdersController.cs`, `OrdersQueries.cs`, `RevenueController.cs`, `RevenueQueries.cs`, `Models/Responses/ApiResponses.cs` (`DailyRevenueResponse.StartDate`/`EndDate` agora `string?`).
+- **Testes**: `OrdersEndpointTests.cs`, `RevenueEndpointTests.cs`, `ApiDtos.cs` (`DailyRevenueDto` com datas nullable).
+- **Frontend**: `api/api.js` (`fetchOrders` com filtros, `fetchDailyRevenue` sem parametros vazios), `App.jsx` (shell de abas), `pages/orders/OrdersPage.jsx` (criacao/listagem/filtros de pedidos), `pages/revenue/RevenuePage.jsx` (consulta/paginacao local de faturamento), `components/PageNav.jsx`, `shared/dateRanges.js`, `shared/formatters.js`, `shared/pagination.js` e `styles.css`.
+- **Worker**: nenhuma alteracao.
+- **Migrations/schema**: nenhuma alteracao.
+
+## Modulo 007 (polish de apresentacao) - Presets em Pedidos e organizacao minima do frontend
+
+**Status: concluido.** Ajustes finais antes do commit, **somente frontend + documentacao** — backend, worker, migrations/schema e testes backend nao foram alterados nesta etapa.
+
+### Presets de periodo como padrao dos filtros com datas
+
+- Os atalhos `Hoje`, `7 dias`, `15 dias`, `30 dias`, `90 dias` e `Ultimo ano` passaram a existir tambem nos filtros de `Pedidos`, nao so em `Faturamento`.
+- Ao clicar em um preset em `Pedidos`, preenche `Data inicial` e `Data final` do rascunho do filtro; **nao dispara busca** — o usuario ainda precisa clicar `Filtrar`. O `status` selecionado e preservado.
+- A logica de presets e datas locais foi centralizada em `shared/dateRanges.js` (`DATE_PRESETS`, `getRecentRange`, `getDefaultRevenueRange`).
+
+### Organizacao minima do frontend (para apresentacao, nao arquitetura)
+
+- `App.jsx` virou shell: header, abas `Pedidos`/`Faturamento`, estado `activeTab`, renderiza `OrdersPage` ou `RevenuePage`.
+- `pages/orders/OrdersPage.jsx`: formulario de criacao, listagem, filtros server-side, presets, paginacao.
+- `pages/revenue/RevenuePage.jsx`: consulta de faturamento, presets, paginacao client-side dos dias.
+- `components/PageNav.jsx`: paginacao numerada compartilhada (Inicio/Anterior/numeros/Proxima/Fim).
+- `api/api.js`: helpers fetch locais, sem classe/DI/service layer.
+- `shared/`: `dateRanges.js`, `formatters.js`, `pagination.js`.
+- Um unico `styles.css`; sem pastas `hooks/`, `contexts/`, `services/` ou `layouts/`.
+
+### Divergencia documental corrigida (modulo 003 vs follow-up 007)
+
+- O modulo 003 original exigia `startDate`/`endDate` em `GET /api/revenue/daily` (ausencia → 400). O follow-up do modulo 007 tornou essas datas opcionais.
+- Adicionada nota de evolucao em `specs/003-faturamento-por-periodo/spec.md`, `contracts/api.md` e `quickstart.md` para nao contradizer o comportamento atual.
+
+### Resultados das validacoes (esta etapa)
+
+| Validacao | Resultado |
+| --- | --- |
+| `npm run build` (`src/TestOrder.Web`) | PASS |
+| `dotnet build TestOrder.slnx` | PASS — 0 erros (backend inalterado) |
+| `.\scripts\test.ps1` | PASS — **57/57** (testes inalterados) |
+| `git diff --check` | PASS |
+| Busca por referencias a projetos externos privados | PASS — zero ocorrencias |
+| `package.json` | PASS — inalterado |

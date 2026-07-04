@@ -7,6 +7,7 @@ public record OrderItemResponse(int ProductId, string ProductName, int Quantity,
 public record OrderResponse(
     long Id,
     DateTime CreatedAt,
+    string? CustomerName,
     string Status,
     decimal Total,
     IReadOnlyList<OrderItemResponse> Items);
@@ -23,8 +24,8 @@ public record ErrorResponse(string Error);
 public record RevenueDayResponse(string Date, decimal Revenue, int OrderCount);
 
 public record DailyRevenueResponse(
-    string StartDate,
-    string EndDate,
+    string? StartDate,
+    string? EndDate,
     decimal TotalRevenue,
     int TotalOrders,
     IReadOnlyList<RevenueDayResponse> Days);

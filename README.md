@@ -1,6 +1,6 @@
 # TestOrder
 
-Sistema de pedidos construído por módulos com [Spec Kit](https://github.com/github/spec-kit): backend ASP.NET Core MVC + MySQL 8 e uma tela web React (Vite) para listar e criar pedidos.
+Sistema de pedidos construído por módulos com [Spec Kit](https://github.com/github/spec-kit): backend ASP.NET Core MVC + MySQL 8 e uma tela web React (Vite) com duas áreas — `Pedidos` (listar/criar com paginação numerada) e `Faturamento` (consultar visualmente o faturamento por período).
 
 Contexto completo de decisões, trade-offs e roteiro de demo em [`docs/PRESENTATION_GUIDE.md`](docs/PRESENTATION_GUIDE.md). Uso de IA documentado em [`AI_NOTES.md`](AI_NOTES.md).
 
@@ -55,7 +55,7 @@ dotnet build TestOrder.slnx
 .\scripts\test.ps1
 ```
 
-Suíte atual: **46/46** testes de integração (xUnit + Testcontainers/MySQL).
+Suíte atual: **57/57** testes de integração (xUnit + Testcontainers/MySQL).
 
 ## Build do frontend
 
@@ -64,7 +64,19 @@ cd src/TestOrder.Web
 npm run build
 ```
 
-Saída em `src/TestOrder.Web/dist/`. Sem suíte automatizada de frontend neste módulo — validação por build + checklist manual (ver [`specs/004-tela-web-pedidos/quickstart.md`](specs/004-tela-web-pedidos/quickstart.md)).
+Saída em `src/TestOrder.Web/dist/`. Sem suíte automatizada de frontend nestes módulos — validação por build + checklist manual (ver [`specs/004-tela-web-pedidos/quickstart.md`](specs/004-tela-web-pedidos/quickstart.md) e [`specs/007-tela-faturamento-periodo/quickstart.md`](specs/007-tela-faturamento-periodo/quickstart.md)).
+
+## Aba Faturamento
+
+A aba `Faturamento` (ao lado de `Pedidos`, mesma aplicação React, sem `react-router`) consulta visualmente o endpoint `GET /api/revenue/daily?startDate=&endDate=` (módulo 003, com datas opcionais desde o follow-up do módulo 007): duas datas + botão `Consultar` retornam total de faturamento, total de pedidos e uma tabela por dia. A tela inclui atalhos de período (`Hoje`, `7 dias`, `15 dias`, `30 dias`, `90 dias`, `Último ano`) e `Limpar datas` (1 clique limpa as duas datas). Datas vazias não são erro: sem `startDate`/`endDate` o backend agrega **todos os dias disponíveis** (sem preencher dias zerados, já que não há um intervalo fechado para "explodir"); com as duas datas preenchidas o comportamento de preenchimento de dias zerados é preservado. A tabela de dias tem **paginação numerada no frontend** (`Início`, `Anterior`, números, `Próxima`, `Fim` — mesmo padrão visual da listagem de `Pedidos`), pois a resposta já vem inteira e agregada por dia do backend. É **apenas visualização** — não altera pedidos, não "fatura" nada e não baixa estoque. Detalhes em [`specs/007-tela-faturamento-periodo/`](specs/007-tela-faturamento-periodo/).
+
+## Filtros de Pedidos
+
+A listagem de `Pedidos` tem filtros **server-side** por `status`, `data inicial` e `data final` (`GET /api/orders?status=&startDate=&endDate=`), porque a listagem é paginada e pode ter milhares de registros — filtrar em memória no cliente não seria viável. `status` vazio ("Todos") ou datas vazias não limitam a busca. Os mesmos atalhos de período do Faturamento (`Hoje`, `7 dias`, …, `Último ano`) preenchem as datas do filtro (sem buscar automaticamente — só no botão `Filtrar`). O botão `Filtrar` reseta a paginação para a página 1 e mantém os filtros ativos ao trocar de página; `Limpar filtros` (1 clique) volta tudo ao padrão.
+
+## Padrão de duplo clique nos campos de filtro/consulta
+
+Em todos os campos de filtro/consulta (status e datas de `Pedidos`; datas de `Faturamento`), **duplo clique dentro do campo limpa apenas aquele campo** (volta ao padrão, no caso do select de status). Isso é diferente dos botões `Limpar filtros`/`Limpar datas`, que continuam funcionando normalmente com **1 clique** e limpam todos os campos da respectiva seção de uma vez. O duplo clique só limpa o valor do campo — a busca só é refeita quando o usuário clica em `Filtrar`/`Consultar`.
 
 ## Smoke test do worker
 
@@ -101,10 +113,10 @@ Histórico completo da origem desses números em [`AI_NOTES.md`](AI_NOTES.md) (m
 | Endpoint | Descrição |
 | --- | --- |
 | `GET /api/products` | Lista de produtos do catálogo |
-| `GET /api/orders?page=&pageSize=` | Pedidos paginados |
+| `GET /api/orders?page=&pageSize=&status=&startDate=&endDate=` | Pedidos paginados, com filtros opcionais |
 | `GET /api/orders/{id}` | Detalhe de um pedido |
 | `POST /api/orders` | Cria pedido com reserva transacional de estoque |
-| `GET /api/revenue/daily?startDate=&endDate=` | Faturamento agregado por dia |
+| `GET /api/revenue/daily?startDate=&endDate=` | Faturamento agregado por dia (datas opcionais) |
 
 ## Estrutura do repositório
 
@@ -112,7 +124,17 @@ Histórico completo da origem desses números em [`AI_NOTES.md`](AI_NOTES.md) (m
 src/
 ├── TestOrder.Api/            # Backend ASP.NET Core MVC + EF Core + Dapper + MySQL 8
 ├── TestOrder.Web/            # Frontend React + Vite (JavaScript, sem TypeScript)
-└── TestOrder.OrderProcessor/ # Worker Node.js (JavaScript, sem TypeScript) — outbox de order_processing_events
+│   └── src/
+│       ├── App.jsx           # Shell: header, abas, renderiza a página ativa
+│       ├── main.jsx
+│       ├── styles.css        # CSS único
+│       ├── api/api.js        # fetch nativo (sem service layer)
+│       ├── components/       # PageNav.jsx (paginação compartilhada)
+│       ├── pages/
+│       │   ├── orders/OrdersPage.jsx
+│       │   └── revenue/RevenuePage.jsx
+│       └── shared/           # dateRanges, formatters, pagination
+└── TestOrder.OrderProcessor/ # Worker Node.js — outbox de order_processing_events
 tests/
 └── TestOrder.Api.Tests/
 specs/                 # Artefatos Spec Kit por módulo (spec, plan, tasks, research...)
@@ -123,6 +145,8 @@ docs/                  # Guia de apresentação
 
 1. Base, modelo e listagem de pedidos.
 2. Criação de pedidos com reserva concorrente (`FOR UPDATE SKIP LOCKED`).
-3. Faturamento por período.
+3. Faturamento por período (endpoint `GET /api/revenue/daily`).
 4. Tela web React (listagem + criação de pedidos).
 5. Worker Node.js para processamento assíncrono do outbox (`order_processing_events`), sem fila externa.
+6. Fechamento final da entrega (auditoria e documentação).
+7. Tela web React — aba `Faturamento` (visualização do endpoint do módulo 003); follow-up: filtros server-side de `status`/data em `Pedidos`, datas opcionais em `GET /api/revenue/daily`, paginação numerada da tabela de dias e padrão de duplo clique para limpar campos de filtro.

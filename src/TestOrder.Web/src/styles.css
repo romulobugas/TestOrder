@@ -100,6 +100,36 @@ body {
   background: var(--color-danger);
 }
 
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.75rem 1.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-card);
+}
+
+.tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--color-text-main);
+}
+
+.tab--active {
+  color: var(--color-text-main);
+  background: var(--color-background);
+  border-color: var(--color-border);
+}
+
 .app-main {
   flex: 1;
   display: grid;
@@ -108,6 +138,99 @@ body {
   padding: 1.25rem 1.5rem;
   align-items: start;
   max-width: 100%;
+}
+
+.app-main--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.revenue-panel {
+  max-width: 640px;
+}
+
+.revenue-form,
+.orders-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.revenue-form .form-row,
+.orders-filter-form .form-row {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 150px;
+}
+
+.orders-filter-form .form-row {
+  max-width: 200px;
+}
+
+.date-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.date-preset-button {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.date-clear-button {
+  align-self: center;
+  color: var(--color-text-muted);
+  padding: 0.35rem 0.2rem;
+}
+
+.revenue-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.revenue-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.revenue-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.revenue-table thead {
+  background: var(--color-background);
+}
+
+.revenue-table th {
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.revenue-table td {
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-main);
+}
+
+.revenue-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .panel {
@@ -260,6 +383,12 @@ body {
   text-decoration: underline;
 }
 
+.btn-link:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 .hint {
   color: var(--color-text-muted);
   font-size: 0.83rem;
@@ -365,6 +494,7 @@ body {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.85rem;
   font-size: 0.83rem;
@@ -388,6 +518,28 @@ body {
   color: var(--color-text-muted);
   background: transparent;
   cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pagination .pagination-page {
+  min-width: 2rem;
+  padding-inline: 0.45rem;
+}
+
+.pagination .pagination-page--active {
+  background: var(--color-primary);
+  color: #10140f;
+  border-color: var(--color-primary);
+}
+
+.pagination-ellipsis {
+  color: var(--color-text-muted);
+  padding-inline: 0.25rem;
 }
 
 @media (max-width: 640px) {
@@ -415,6 +567,31 @@ body {
 
   .orders-table {
     min-width: 480px;
+    white-space: nowrap;
+  }
+
+  .tabs {
+    padding: 0.5rem 1rem 0;
+  }
+
+  .revenue-form,
+  .orders-filter-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .orders-filter-form .form-row {
+    max-width: none;
+  }
+
+  .date-presets,
+  .pagination,
+  .pagination-pages {
+    justify-content: flex-start;
+  }
+
+  .revenue-table {
+    min-width: 420px;
     white-space: nowrap;
   }
 }

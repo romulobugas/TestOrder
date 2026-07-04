@@ -10,6 +10,8 @@
 
 **Depende de**: Módulo 001 concluído (modelo `orders`/`order_items`, listagens, Docker, testes com Testcontainers) e Módulo 002 concluído (`POST /api/orders` gerando novos pedidos com status `created`).
 
+> **Nota de evolução (follow-up módulo 007, 2026-07-03):** o endpoint `GET /api/revenue/daily` passou a aceitar `startDate` e `endDate` **opcionais**. Ausência de parâmetro deixa de retornar `400` e passa a significar “sem limite” naquele lado; com as duas vazias, agrega todos os dias com pedido. Zero-fill dia a dia continua **somente** quando as duas datas são informadas. Os FR-002/FR-003 e AC-006/AC-007 abaixo descrevem o comportamento **original deste módulo**; o comportamento atual está documentado em `specs/007-tela-faturamento-periodo/` e em `AI_NOTES.md` (seção follow-up).
+
 ---
 
 ## Objetivo do módulo

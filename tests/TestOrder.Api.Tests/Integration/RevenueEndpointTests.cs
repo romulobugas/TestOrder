@@ -129,25 +129,86 @@ public class RevenueEndpointTests(MySqlContainerFixture fixture)
     }
 
     [Fact]
-    public async Task GetDailyRevenue_MissingStartDate_Returns400()
+    public async Task GetDailyRevenue_MissingStartDate_TreatedAsOpenLowerBound()
     {
+        // Sem startDate = sem limite inferior; não é mais erro (correção do módulo 007 follow-up).
         var response = await _client.GetAsync("/api/revenue/daily?endDate=2030-01-10");
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var error = await response.Content.ReadFromJsonAsync<ErrorDto>();
-        Assert.NotNull(error);
-        Assert.False(string.IsNullOrWhiteSpace(error.Error));
+        var result = await response.Content.ReadFromJsonAsync<DailyRevenueDto>();
+        Assert.NotNull(result);
+        Assert.Null(result.StartDate);
+        Assert.Equal("2030-01-10", result.EndDate);
     }
 
     [Fact]
-    public async Task GetDailyRevenue_MissingEndDate_Returns400()
+    public async Task GetDailyRevenue_MissingEndDate_TreatedAsOpenUpperBound()
     {
         var response = await _client.GetAsync("/api/revenue/daily?startDate=2030-01-01");
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var error = await response.Content.ReadFromJsonAsync<ErrorDto>();
-        Assert.NotNull(error);
-        Assert.False(string.IsNullOrWhiteSpace(error.Error));
+        var result = await response.Content.ReadFromJsonAsync<DailyRevenueDto>();
+        Assert.NotNull(result);
+        Assert.Equal("2030-01-01", result.StartDate);
+        Assert.Null(result.EndDate);
+    }
+
+    [Fact]
+    public async Task GetDailyRevenue_BothDatesEmpty_AggregatesAllAvailableDays()
+    {
+        var response = await _client.GetAsync("/api/revenue/daily");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<DailyRevenueDto>();
+        Assert.NotNull(result);
+        Assert.Null(result.StartDate);
+        Assert.Null(result.EndDate);
+        Assert.NotEmpty(result.Days);
+        Assert.True(result.TotalOrders > 0);
+        Assert.True(result.TotalRevenue > 0);
+        Assert.Equal(result.Days.Sum(d => d.Revenue), result.TotalRevenue);
+        Assert.Equal(result.Days.Sum(d => d.OrderCount), result.TotalOrders);
+    }
+
+    [Fact]
+    public async Task GetDailyRevenue_OnlyStartDate_ReturnsOnlyRealDaysWithoutZeroFill()
+    {
+        await using var connection = await OpenConnectionAsync();
+        var productId = await CreateProductAsync(connection, "Revenue OnlyStart", 12m);
+
+        var day1 = new DateOnly(2032, 1, 1);
+        var day3 = day1.AddDays(2); // day2 fica sem pedido de propósito — não deve aparecer zerado.
+        await InsertOrderWithItemAsync(connection, day1.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc), productId, quantity: 1, unitPrice: 12m);
+        await InsertOrderWithItemAsync(connection, day3.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc), productId, quantity: 2, unitPrice: 12m);
+
+        var response = await _client.GetAsync($"/api/revenue/daily?startDate={day1:yyyy-MM-dd}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<DailyRevenueDto>();
+        Assert.NotNull(result);
+        Assert.Null(result.EndDate);
+
+        var relevantDays = result.Days.Where(d => d.Date == day1.ToString("yyyy-MM-dd") || d.Date == day3.ToString("yyyy-MM-dd")).ToList();
+        Assert.Equal(2, relevantDays.Count);
+        Assert.DoesNotContain(result.Days, d => d.Date == day1.AddDays(1).ToString("yyyy-MM-dd"));
+    }
+
+    [Fact]
+    public async Task GetDailyRevenue_OnlyEndDate_ReturnsOnlyRealDaysWithoutZeroFill()
+    {
+        await using var connection = await OpenConnectionAsync();
+        var productId = await CreateProductAsync(connection, "Revenue OnlyEnd", 9m);
+
+        var day = new DateOnly(2032, 6, 1);
+        await InsertOrderWithItemAsync(connection, day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc), productId, quantity: 1, unitPrice: 9m);
+
+        var response = await _client.GetAsync($"/api/revenue/daily?endDate={day:yyyy-MM-dd}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<DailyRevenueDto>();
+        Assert.NotNull(result);
+        Assert.Null(result.StartDate);
+        Assert.Contains(result.Days, d => d.Date == day.ToString("yyyy-MM-dd") && d.Revenue == 9m);
     }
 
     [Theory]
@@ -155,7 +216,6 @@ public class RevenueEndpointTests(MySqlContainerFixture fixture)
     [InlineData("2030-01-01", "01-10-2030")]
     [InlineData("2030-13-40", "2030-01-10")]
     [InlineData("2030-02-30", "2030-01-10")]
-    [InlineData("", "2030-01-10")]
     public async Task GetDailyRevenue_InvalidDate_Returns400(string startDate, string endDate)
     {
         var response = await _client.GetAsync($"/api/revenue/daily?startDate={startDate}&endDate={endDate}");

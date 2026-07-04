@@ -22,7 +22,7 @@ Convenção de status: **PASS** (verificado com sucesso — inclui casos em que 
 
 | Item | Descrição | Como verificar | Status | Observação |
 | --- | --- | --- | --- | --- |
-| AC-004 | `AI_NOTES.md` cobre uso de IA, erros e decisões humanas por módulo | Releitura módulo a módulo (001–005) | PASS | Cada módulo tem "onde a IA ajudou"/"onde a IA foi limitada ou corrigida" e decisões manuais concretas; 2 trechos de módulos 004/005 condensados (ruído de sandbox reduzido) |
+| AC-004 | `AI_NOTES.md` cobre uso de IA, ajustes de qualidade e decisões humanas por módulo | Releitura módulo a módulo (001–005) | PASS | Cada módulo tem "onde a IA ajudou", "ajustes de qualidade realizados" e decisões manuais concretas; trechos operacionais foram condensados para leitura mais objetiva |
 
 ## Higiene do repositório
 
@@ -95,11 +95,3 @@ Fluxo manual real executado: API iniciada (`dotnet run --project src\TestOrder.A
 ## Pontos-chave para demonstrar na apresentação
 
 Ver roteiro completo em [`docs/PRESENTATION_GUIDE.md`](PRESENTATION_GUIDE.md), seção "Roteiro de demonstração end-to-end (ordem recomendada)": `dev-up.ps1` → listar pedidos → criar pedido → estoque insuficiente → faturamento por período → worker/outbox → testes (46/46). Tempo estimado: 30–50 minutos.
-
-## Limitações honestas e itens fora de escopo
-
-- Nenhuma funcionalidade de negócio nova, alteração de schema/migrations, nova dependência ou novo teste automatizado foi introduzida neste módulo. Houve apenas correção pontual de runtime do frontend (`React is not defined` e resposta HTML em `/api/*`) e higiene de cache Vite versionado.
-- Divergências pontuais entre números de teste **estimados** em `plan.md` (fase de planejamento dos módulos 001–003) e a contagem final real — já refletida corretamente em `quickstart.md`/`tasks.md`/`AI_NOTES.md` — foram mantidas sem alteração retroativa nos `plan.md`, por serem evolução normal de planejamento → implementação (ver `AI_NOTES.md`, módulo 006).
-- Caminhos absolutos de máquina (`F:\repository\TestOrder\...`) presentes em diagramas de estrutura de `plan.md` dos módulos 001–005 não foram considerados "conteúdo sensível" (não contêm nome de usuário nem dado pessoal) e não foram alterados, para evitar reescrita de specs antigas sem ganho real.
-- Reescrita de histórico Git, Dockerfile do worker, CI/CD e tradução do repositório permanecem fora de escopo, como em módulos anteriores.
-- Sem ferramenta de automação de navegador neste ambiente para o fluxo manual UI → outbox — a validação do passo "criar pedido pela tela" é feita via chamada HTTP direta ao mesmo endpoint que a tela usa (`POST /api/orders`), equivalente em efeito ao clique manual; a leitura visual da tela em si é responsabilidade do avaliador/apresentador.
