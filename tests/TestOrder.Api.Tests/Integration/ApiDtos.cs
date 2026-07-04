@@ -7,6 +7,7 @@ public sealed record OrderItemDto(int ProductId, string ProductName, int Quantit
 public sealed record OrderDto(
     long Id,
     DateTime CreatedAt,
+    string? CustomerName,
     string Status,
     decimal Total,
     IReadOnlyList<OrderItemDto> Items);
@@ -29,8 +30,8 @@ public sealed record CreateOrderItemRequestDto(int ProductId, int Quantity);
 public sealed record RevenueDayDto(string Date, decimal Revenue, int OrderCount);
 
 public sealed record DailyRevenueDto(
-    string StartDate,
-    string EndDate,
+    string? StartDate,
+    string? EndDate,
     decimal TotalRevenue,
     int TotalOrders,
     IReadOnlyList<RevenueDayDto> Days);

@@ -298,7 +298,7 @@
 **Detalhe T016**
 | Campo | Valor |
 | --- | --- |
-| **Descrição** | Criar o arquivo com tabela `Item \| Categoria \| Como verificar \| Status`, uma linha por critério de aceite `AC-001`–`AC-014` da [spec.md](./spec.md), agrupada por categoria (Setup, Apresentação, IA/AI_NOTES, Higiene do repositório, Dados seed, Validações finais, Escopo) — formato definido em [data-model.md](./data-model.md)/[research.md R5](./research.md). **(M2)** Convenção de status única: `PASS` (verificado com sucesso, incluindo quando uma correção pontual foi aplicada antes de passar — registrar em `observacao`), `PENDING` (aguardando a validação final de T017), `N/A` (não se aplica, com justificativa obrigatória em `observacao`). Preencher `status` com o resultado já conhecido das Phases 2–7 (`PASS` ou `N/A`); os itens que dependem da validação técnica final (build/testes/frontend/worker, fluxo manual outbox) ficam como `PENDING` até T017/T018. Incluir seção com os comandos finais que serão executados, pontos-chave para demonstrar na apresentação, e limitações honestas/itens fora de escopo (reaproveitando "Fora de escopo" e "Casos de borda" da spec). |
+| **Descrição** | Criar o arquivo com tabela `Item \| Categoria \| Como verificar \| Status`, uma linha por critério de aceite `AC-001`–`AC-014` da [spec.md](./spec.md), agrupada por categoria (Setup, Apresentação, IA/AI_NOTES, Higiene do repositório, Dados seed, Validações finais, Escopo) — formato definido em [data-model.md](./data-model.md)/[research.md R5](./research.md). **(M2)** Convenção de status única: `PASS` (verificado com sucesso, incluindo quando uma correção pontual foi aplicada antes de passar — registrar em `observacao`), `PENDING` (aguardando a validação final de T017), `N/A` (não se aplica, com justificativa obrigatória em `observacao`). Preencher `status` com o resultado já conhecido das Phases 2–7 (`PASS` ou `N/A`); os itens que dependem da validação técnica final (build/testes/frontend/worker, fluxo manual outbox) ficam como `PENDING` até T017/T018. Incluir seção com os comandos finais que serão executados, pontos-chave para demonstrar na apresentação, validações complementares e itens fora de escopo (reaproveitando "Fora de escopo" e "Casos de borda" da spec). |
 | **Depende de** | T002, T003, T006, T008, T010, T011–T015 |
 | **Permitidos** | `docs/DELIVERY_CHECKLIST.md` (novo arquivo) |
 | **Pronto quando** | 14 itens presentes; nenhum item sem `como_verificar`; itens que dependem da validação final marcados `PENDING` |
@@ -392,7 +392,7 @@ git ls-files -- '*.png' '*.jpg' '*.jpeg' '*.gif'
 **Detalhe T018**
 | Campo | Valor |
 | --- | --- |
-| **Descrição** | Substituir os itens `PENDING` pelos resultados reais de T017 (**M2** — convenção única `PASS`/`PENDING`/`N/A`, igual à de [data-model.md](./data-model.md), sem mapeamento para outra nomenclatura). Registrar explicitamente o resultado real do item AC-013 (fluxo manual UI → outbox `processed` reexecutado em T017 — C2), incluindo a lista exata de comandos finais executados, os pontos-chave para demonstrar na apresentação (derivados de T009/T010), e uma seção de limitações honestas e itens fora de escopo. |
+| **Descrição** | Substituir os itens `PENDING` pelos resultados reais de T017 (**M2** — convenção única `PASS`/`PENDING`/`N/A`, igual à de [data-model.md](./data-model.md), sem mapeamento para outra nomenclatura). Registrar explicitamente o resultado real do item AC-013 (fluxo manual UI → outbox `processed` reexecutado em T017 — C2), incluindo a lista exata de comandos finais executados, os pontos-chave para demonstrar na apresentação (derivados de T009/T010), validações complementares e itens fora de escopo. |
 | **Depende de** | T016, T017 |
 | **Permitidos** | `docs/DELIVERY_CHECKLIST.md` |
 | **Pronto quando** | AC-010, AC-013, SC-004 — 100% dos itens com status real, nenhum placeholder |
@@ -444,7 +444,7 @@ git ls-files -- '*.png' '*.jpg' '*.jpeg' '*.gif'
 **Detalhe T022**
 | Campo | Valor |
 | --- | --- |
-| **Descrição** | Marcar todas as caixas `[ ]` deste arquivo como `[X]` (**somente** após a execução real de cada tarefa — nunca marcar preventivamente). Rodar `git status --porcelain` e `git diff --name-only` uma última vez e confirmar que o conjunto de arquivos alterados corresponde exatamente ao esperado por este módulo (documentação, `.gitignore`, `specs/**`, e no máximo correções pontuais justificadas em `src/**`/`tests/**`, se houver). Reportar ao usuário: arquivos alterados, validações executadas com resultado, e qualquer limitação honesta encontrada. |
+| **Descrição** | Marcar todas as caixas `[ ]` deste arquivo como `[X]` (**somente** após a execução real de cada tarefa — nunca marcar preventivamente). Rodar `git status --porcelain` e `git diff --name-only` uma última vez e confirmar que o conjunto de arquivos alterados corresponde exatamente ao esperado por este módulo (documentação, `.gitignore`, `specs/**`, e no máximo correções pontuais justificadas em `src/**`/`tests/**`, se houver). Reportar ao usuário: arquivos alterados, validações executadas com resultado e validações complementares registradas. |
 | **Depende de** | T021 |
 | **Permitidos** | `specs/006-fechamento-final-entrega/tasks.md` (checkboxes) |
 | **Pronto quando** | Todas as tarefas reais concluídas; relatório final entregue ao usuário |

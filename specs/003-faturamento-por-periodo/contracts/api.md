@@ -12,6 +12,8 @@
 - Erros: `{ "error": "mensagem" }`.
 - **Exceção de data**: campos de dia civil (`startDate`, `endDate`, `days[].date`) são strings `yyyy-MM-dd` **sem** hora nem sufixo `Z` — diferente de `createdAt` (instante UTC) usado nos módulos 001/002.
 
+> **Nota de evolução (follow-up módulo 007):** `startDate` e `endDate` deixaram de ser obrigatórios. Parâmetro ausente = sem filtro naquele lado; ambos ausentes = agrega todos os dias com pedido (sem zero-fill). A tabela de validação 400 abaixo reflete o contrato **original**; ver `specs/007-tela-faturamento-periodo/` para o contrato atual.
+
 ---
 
 ## Endpoints preservados (módulos 001 e 002)

@@ -1,50 +1,99 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!-- Sync Impact Report
+  Version change: 0.0.0 (template) → 1.0.0
+  Modified principles: All new (template placeholders replaced)
+  Added sections: Core Principles (5), Technology Constraints, Quality Gates, Governance
+  Removed sections: None (template examples removed)
+  Templates requiring updates:
+    - .specify/templates/plan-template.md ✅ compatible (Constitution Check section exists)
+    - .specify/templates/spec-template.md ✅ compatible (no constitution references needed)
+    - .specify/templates/tasks-template.md ✅ compatible (phase structure aligns)
+  Follow-up TODOs: None
+-->
+
+# TestOrder Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Simplicidade Legível
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+O sistema DEVE ser o menor conjunto legível de código que satisfaça o desafio.
+Cada feature DEVE ser compreensível a partir de poucos arquivos.
+Controllers MVC e código direto DEVEM ser preferidos sobre cerimônia arquitetural.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. SQL Próximo do Uso
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+Queries Dapper ou raw SQL DEVEM residir no mesmo namespace do controller que as consome.
+EF Core DEVE ser usado exclusivamente para ownership de schema e database setup.
+Queries de leitura e transações críticas (reserva de estoque) DEVEM usar Dapper com parâmetros.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Sem Abstração Prematura (NON-NEGOTIABLE)
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+O projeto NÃO DEVE conter: Repository interfaces, generic services, CQRS, Mediator,
+handlers, mappers, factories ou strategies — exceto quando o código demonstrar
+necessidade concreta e atual. Clean Architecture por ritual e DDD tactical patterns
+são explicitamente proibidos neste domínio.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Stack Fixa e Mínima
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Tecnologias permitidas (sem exceção salvo justificativa documentada em AI_NOTES.md):
+- Backend: ASP.NET Core MVC controllers, Dapper, EF Core (migrations).
+- Banco: MySQL 8 (FOR UPDATE SKIP LOCKED para concorrência).
+- Frontend: React com JavaScript puro, CSS puro, Vite.
+- Worker: Node.js microservice para processamento assíncrono pós-criação.
+- Proibido: RabbitMQ, Kafka, Redis, bancos extras, Redux, Zustand, React Query,
+  react-router, UI kits, CSS-in-JS, Tailwind.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Módulo por Vez
+
+Cada módulo DEVE ser desenvolvido em branch própria com artefatos Spec Kit
+na ordem: spec.md → plan.md → tasks.md → implementação.
+Módulos futuros NÃO DEVEM ser implementados durante o módulo atual.
+Após cada módulo, validações práticas DEVEM ser deixadas em tasks.md e
+docs/PRESENTATION_GUIDE.md.
+
+## Technology Constraints
+
+### Frontend
+- Nenhuma dependência nova em package.json sem necessidade comprovada.
+- styles.css único; sem CSS modules, CSS-in-JS ou frameworks CSS.
+- Estado local com hooks React; sem state management externo.
+- Duplo clique em campos de filtro/consulta DEVE limpar aquele campo individual.
+- Botões "Limpar" DEVEM funcionar com 1 clique.
+
+### Backend
+- MVC controllers DEVEM ser preservados; Minimal APIs são proibidas.
+- Dapper DEVE ser usado para queries de leitura e transações.
+- Testes de integração DEVEM rodar com banco MySQL real (container).
+- Validação de entrada DEVE ser feita no controller; sem FluentValidation.
+
+### Worker Node.js
+- Alterações SOMENTE quando o módulo exigir processamento assíncrono.
+- NÃO DEVE ser modificado para fins de frontend ou relatório.
+
+### Documentação
+- AI_NOTES.md DEVE ser atualizado a cada passo assistido por IA.
+- docs/PRESENTATION_GUIDE.md DEVE conter decisões, tradeoffs e referências de código.
+- Tom DEVE ser profissional e neutro; linguagem defensiva ou autodepreciativa é proibida.
+
+## Quality Gates
+
+Cada step de implementação DEVE satisfazer todos os gates antes de ser considerado completo:
+
+1. `npm run build` no frontend — zero erros.
+2. `dotnet build TestOrder.slnx` — zero erros.
+3. `.\scripts\test.ps1` — todos os testes passando.
+4. `git diff --check` — zero erros de whitespace.
+5. Zero referências a termos proibidos no código ou documentação.
+6. package.json sem dependências novas não justificadas.
+7. Projeto DEVE compilar e rodar, ou documentar exatamente o que falta.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+- Esta constitution prevalece sobre padrões genéricos da indústria quando houver conflito.
+- Alterações à constitution requerem justificativa documentada em AI_NOTES.md.
+- Todo PR/review DEVE verificar conformidade com os princípios acima.
+- Complexidade adicional DEVE ser justificada por necessidade demonstrável atual.
+- Versionamento: MAJOR para remoção/redefinição de princípios; MINOR para adição;
+  PATCH para clarificações de texto.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-07-04 | **Last Amended**: 2026-07-04

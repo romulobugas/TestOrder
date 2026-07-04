@@ -72,7 +72,7 @@ Não há autenticação nem perfis de acesso neste módulo — o "usuário" é s
 
 **Por que P1**: É um critério explícito de avaliação do desafio — "mostrar como a IA foi usada com controle, revisão e limites claros" (já é a frase de abertura do próprio `AI_NOTES.md`).
 
-**Teste independente**: Ler `AI_NOTES.md` e confirmar que cada módulo (001–005) tem uma seção com "onde a IA ajudou" e "onde a IA foi limitada ou corrigida" (ou equivalente), sem seções vazias ou genéricas demais para serem verificáveis.
+**Teste independente**: Ler `AI_NOTES.md` e confirmar que cada módulo (001–005) tem uma seção com "onde a IA ajudou" e "ajustes de qualidade realizados" (ou equivalente), sem seções vazias ou genéricas demais para serem verificáveis.
 
 **Cenários de aceite**:
 
@@ -194,7 +194,7 @@ Não há autenticação nem perfis de acesso neste módulo — o "usuário" é s
 | AC-001 | `README.md` permite subir tudo com um comando | Clone limpo (ou ambiente resetado) + `.\scripts\dev-up.ps1` seguindo apenas o README, sem passos extras não documentados |
 | AC-002 | Comandos de validação final documentados e corretos | `dotnet build TestOrder.slnx`, `.\scripts\test.ps1`, `npm run build`, `node index.js` do worker — todos presentes no README e executam com sucesso |
 | AC-003 | `dev-up.ps1` é o caminho principal em toda a documentação | Buscar por comandos alternativos de subida em README/PRESENTATION_GUIDE/quickstarts — `dev-up.ps1` é sempre o recomendado primeiro |
-| AC-004 | `AI_NOTES.md` cobre uso de IA, erros e decisões humanas por módulo | Releitura módulo a módulo (001–005): cada um tem "onde a IA ajudou" e "onde a IA foi limitada ou corrigida" concretos |
+| AC-004 | `AI_NOTES.md` cobre uso de IA, ajustes de qualidade e decisões humanas por módulo | Releitura módulo a módulo (001–005): cada um tem "onde a IA ajudou" e "ajustes de qualidade realizados" concretos |
 | AC-005 | `PRESENTATION_GUIDE.md` sem seções pendentes | Buscar por "A preencher"/placeholders nas seções dos módulos 001–005 — nenhuma ocorrência |
 | AC-006 | Specs 001–005 consistentes e sem conteúdo sensível | Releitura das pastas `specs/001-*` a `specs/005-*`; nenhuma credencial real, dado pessoal ou referência externa não intencional |
 | AC-007 | Nenhum artefato de build versionado | `git status --porcelain` após `npm install`/`dotnet build` não lista `node_modules/`, `dist/`, `bin/`, `obj/` |

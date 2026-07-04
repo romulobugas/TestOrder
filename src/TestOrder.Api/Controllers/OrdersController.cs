@@ -1,3 +1,4 @@
+using System.Globalization;
 using Dapper;
 using Microsoft.AspNetCore.Mvc;
 using MySqlConnector;
@@ -13,11 +14,15 @@ public class OrdersController(MySqlConnection connection) : ControllerBase
     private const int DefaultPage = 1;
     private const int DefaultPageSize = 20;
     private const int MaxPageSize = 100;
+    private const string DateFormat = "yyyy-MM-dd";
 
     [HttpGet]
     public async Task<ActionResult<PagedOrdersResponse>> GetOrders(
         [FromQuery] int? page,
         [FromQuery] int? pageSize,
+        [FromQuery] string? status,
+        [FromQuery] string? startDate,
+        [FromQuery] string? endDate,
         CancellationToken cancellationToken)
     {
         var paginationError = ValidatePagination(page, pageSize, out var resolvedPage, out var resolvedPageSize);
@@ -26,14 +31,25 @@ public class OrdersController(MySqlConnection connection) : ControllerBase
             return BadRequest(paginationError);
         }
 
+        var filterError = ValidateFilters(status, startDate, endDate, out var normalizedStatus, out var startUtc, out var endExclusiveUtc);
+        if (filterError is not null)
+        {
+            return BadRequest(filterError);
+        }
+
         await connection.OpenAsync(cancellationToken);
 
-        var totalCount = await connection.ExecuteScalarAsync<int>(OrdersQueries.CountOrders);
+        var whereSql = BuildWhereClause(normalizedStatus, startUtc, endExclusiveUtc);
+        var filterParams = new { Status = normalizedStatus, StartUtc = startUtc, EndExclusiveUtc = endExclusiveUtc };
+
+        var totalCount = await connection.ExecuteScalarAsync<int>(
+            OrdersQueries.BuildCountOrders(whereSql),
+            filterParams);
         var offset = (resolvedPage - 1) * resolvedPageSize;
 
         var orderRows = (await connection.QueryAsync<OrderPageRow>(
-            OrdersQueries.PageOrders,
-            new { PageSize = resolvedPageSize, Offset = offset })).ToList();
+            OrdersQueries.BuildPageOrders(whereSql),
+            new { filterParams.Status, filterParams.StartUtc, filterParams.EndExclusiveUtc, PageSize = resolvedPageSize, Offset = offset })).ToList();
 
         var itemsByOrderId = await LoadItemsForOrdersAsync(orderRows.Select(o => o.Id));
 
@@ -99,6 +115,7 @@ public class OrdersController(MySqlConnection connection) : ControllerBase
                 new OrderResponse(
                     success.OrderId,
                     success.CreatedAt,
+                    success.CustomerName,
                     success.Status,
                     success.Total,
                     success.Items)),
@@ -164,6 +181,82 @@ public class OrdersController(MySqlConnection connection) : ControllerBase
         return null;
     }
 
+    // Filtros são opcionais e combináveis: status vazio ou datas vazias simplesmente não entram no WHERE.
+    private static ErrorResponse? ValidateFilters(
+        string? status,
+        string? startDate,
+        string? endDate,
+        out string? normalizedStatus,
+        out DateTime? startUtc,
+        out DateTime? endExclusiveUtc)
+    {
+        normalizedStatus = string.IsNullOrWhiteSpace(status) ? null : status.Trim();
+        startUtc = null;
+        endExclusiveUtc = null;
+
+        DateOnly? start = null;
+        DateOnly? end = null;
+
+        if (!string.IsNullOrWhiteSpace(startDate))
+        {
+            if (!DateOnly.TryParseExact(startDate, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedStart))
+            {
+                return new ErrorResponse("startDate must be a valid date in yyyy-MM-dd format.");
+            }
+
+            start = parsedStart;
+        }
+
+        if (!string.IsNullOrWhiteSpace(endDate))
+        {
+            if (!DateOnly.TryParseExact(endDate, DateFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedEnd))
+            {
+                return new ErrorResponse("endDate must be a valid date in yyyy-MM-dd format.");
+            }
+
+            end = parsedEnd;
+        }
+
+        if (start is not null && end is not null && start > end)
+        {
+            return new ErrorResponse("startDate must not be after endDate.");
+        }
+
+        if (start is not null)
+        {
+            startUtc = start.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        }
+
+        if (end is not null)
+        {
+            endExclusiveUtc = end.Value.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        }
+
+        return null;
+    }
+
+    private static string BuildWhereClause(string? status, DateTime? startUtc, DateTime? endExclusiveUtc)
+    {
+        var conditions = new List<string>();
+
+        if (status is not null)
+        {
+            conditions.Add("o.status = @Status");
+        }
+
+        if (startUtc is not null)
+        {
+            conditions.Add("o.created_at >= @StartUtc");
+        }
+
+        if (endExclusiveUtc is not null)
+        {
+            conditions.Add("o.created_at < @EndExclusiveUtc");
+        }
+
+        return conditions.Count == 0 ? "" : "WHERE " + string.Join(" AND ", conditions);
+    }
+
     private async Task<Dictionary<long, List<OrderItemResponse>>> LoadItemsForOrdersAsync(
         IEnumerable<long> orderIds)
     {
@@ -189,12 +282,13 @@ public class OrdersController(MySqlConnection connection) : ControllerBase
     }
 
     private static OrderResponse ToOrderResponse(OrderPageRow row, List<OrderItemResponse>? items) =>
-        new(row.Id, row.CreatedAt, row.Status, row.Total, items ?? []);
+        new(row.Id, row.CreatedAt, row.CustomerName, row.Status, row.Total, items ?? []);
 
     private static OrderResponse ToOrderResponse(OrderDetailRow row, List<OrderItemDetailRow> items) =>
         new(
             row.Id,
             row.CreatedAt,
+            row.CustomerName,
             row.Status,
             row.Total,
             items.Select(item => new OrderItemResponse(

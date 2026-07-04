@@ -176,6 +176,7 @@ internal static class CreateOrderCommands
         return new CreateOrderSuccess(
             orderId,
             createdAt,
+            request.CustomerName,
             CreatedOrderStatus,
             total,
             responseItems);
@@ -189,6 +190,7 @@ internal abstract record CreateOrderResult;
 internal sealed record CreateOrderSuccess(
     long OrderId,
     DateTime CreatedAt,
+    string? CustomerName,
     string Status,
     decimal Total,
     IReadOnlyList<OrderItemResponse> Items) : CreateOrderResult;

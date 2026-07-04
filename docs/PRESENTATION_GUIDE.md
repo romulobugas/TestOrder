@@ -25,6 +25,7 @@ O projeto foi construido como uma solucao pequena e explicavel, priorizando boas
 4. Tela React. **(concluido)**
 5. Microservico Node e outbox. **(concluido)**
 6. Fechamento final da entrega (README, AI_NOTES, checklist). **(concluido)**
+7. Tela React — aba Faturamento (visualizacao do endpoint do modulo 003); follow-up: filtros de Pedidos, datas opcionais no faturamento, paginacao de dias e duplo clique nos campos de filtro. **(concluido)**
 
 ## Roteiro de demonstracao end-to-end (ordem recomendada)
 
@@ -69,8 +70,9 @@ Tempo estimado: cada modulo tem um roteiro detalhado de 5–10 min nas secoes ab
 | 003 | `src/TestOrder.Api/Controllers/RevenueController.cs` | `GET /api/revenue/daily`, validacoes 400, preenchimento de dias zerados |
 | 003 | `src/TestOrder.Api/Controllers/RevenueQueries.cs` | SQL agregado unico, intervalo semiaberto UTC |
 | 003 | `tests/TestOrder.Api.Tests/Integration/RevenueEndpointTests.cs` | 10 metodos de teste (14 casos) — agregacao, validacao, regressao (46 total na suite) |
-| 004 | `src/TestOrder.Web/src/App.jsx` | Estado local, listagem paginada, formulario, validacoes, tratamento 400/409 |
-| 004 | `src/TestOrder.Web/src/api.js` | Helper obrigatorio: `fetchProducts`, `fetchOrders`, `createOrder` |
+| 004/007 | `src/TestOrder.Web/src/App.jsx` | Shell simples: header, abas e renderizacao da pagina ativa |
+| 004/007 | `src/TestOrder.Web/src/pages/orders/OrdersPage.jsx` | Listagem/criacao de pedidos, filtros e paginacao numerada |
+| 004/007 | `src/TestOrder.Web/src/api/api.js` | Helper obrigatorio de `fetch` nativo, sem service layer generica |
 | 004 | `src/TestOrder.Web/vite.config.js` | Proxy `/api` -> `http://localhost:5069`, sem CORS no backend |
 | 004 | `src/TestOrder.Web/src/styles.css` | CSS proprio, responsivo, sem framework |
 | 005 | `src/TestOrder.OrderProcessor/worker.js` | `processPendingEvents`: `FOR UPDATE SKIP LOCKED`, UPDATE condicional, comentario de concorrencia |
@@ -467,5 +469,118 @@ O resultado completo da auditoria — incluindo status final de cada verificacao
 | Arquivos de build versionados | PASS | Nenhum (`node_modules`/`dist`/`bin`/`obj` ignorados) |
 | Screenshots/temporarios versionados | PASS | Nenhum |
 | Escopo (`git diff --name-only`) | PASS | Documentacao de fechamento + correcao pontual de runtime do frontend (`App.jsx`/`api.js`) e higiene de cache Vite (`.gitignore`/`.vite`) |
+
+## Modulo 007 — Tela de Faturamento por Periodo
+
+Este modulo adiciona **apenas visualizacao** na tela React ja existente para o endpoint `GET /api/revenue/daily`, implementado desde o modulo 003. Nenhuma regra de negocio nova: nao ha edicao de pedido, "faturar pedido", baixa de estoque ou alteracao de status — a aba `Faturamento` so consulta e exibe o que o backend ja calculava.
+
+### Roteiro de demo (2–3 min)
+
+1. Com `.\scripts\dev-up.ps1` no ar, abrir `http://localhost:5173` — aba `Pedidos` aparece por padrao, sem regressao; a listagem tem paginacao numerada, `Inicio` e `Fim`.
+2. Clicar na aba `Faturamento` (ao lado de `Pedidos`, sem `react-router`, sem reload) — campos de data ja vem preenchidos (1º dia do mes corrente ate hoje).
+3. Usar os atalhos `Hoje`, `7 dias`, `15 dias`, `30 dias`, `90 dias` e `Ultimo ano` — eles apenas preenchem as datas; a consulta so acontece ao clicar `Consultar`.
+4. Ajustar o intervalo para um periodo do seed (ex.: `2025-07-02` a `2026-07-01`) e clicar `Consultar` — mostrar total de faturamento em BRL, total de pedidos e a tabela por dia.
+5. Clicar `Limpar datas` (1 clique limpa as duas datas) e depois `Consultar` — a tela consulta com as duas datas vazias; o backend agrega **todos os dias disponiveis** (sem preencher zeros, pois nao ha intervalo fechado).
+6. Consultar um intervalo futuro sem pedidos (ex.: `2030-01-01` a `2030-01-03`) — totais e tabela zerados, **sem** mensagem de erro (zero nao e tratado como falha).
+7. Inverter as datas (`startDate` > `endDate`) e clicar `Consultar` — mensagem amigavel em portugues, sem JSON bruto.
+8. Voltar para `Pedidos` — confirmar que a listagem/paginacao continuam exatamente onde estavam (estado preservado ao trocar de aba).
+
+### Referencias de codigo
+
+| Arquivo | O que explicar |
+| --- | --- |
+| `src/TestOrder.Web/src/api/api.js` | `fetchDailyRevenue` — funcao local de `fetch`, reaproveita `parseErrorMessage`/`readJsonResponse`/mensagem generica ja existentes |
+| `src/TestOrder.Web/src/shared/formatters.js` | `formatCurrency` (BRL) + `formatCalendarDate` (`YYYY-MM-DD` → `DD/MM/YYYY` via split, sem `new Date()`) |
+| `src/TestOrder.Web/src/App.jsx` | Shell de navegacao (`Pedidos`/`Faturamento`), sem `react-router` e sem store global |
+| `src/TestOrder.Web/src/pages/revenue/RevenuePage.jsx` | Consulta de faturamento, presets de datas, datas opcionais e paginacao local da tabela de dias |
+| `src/TestOrder.Web/src/styles.css` | Classes `.tabs`/`.tab`/`.revenue-*`/`.pagination-*`, reaproveitando o tema escuro existente |
+
+### Validacoes — Modulo 007
+
+| Validacao | Status | Evidencia |
+| --- | --- | --- |
+| `npm run build` (frontend) | PASS | `dist/` gerado sem erros, antes e depois do CSS |
+| `dotnet build TestOrder.slnx` | PASS | 0 erros |
+| `.\scripts\test.ps1` | PASS | **57/57** |
+| `.\scripts\dev-up.ps1` | PASS | 4 janelas sobem normalmente; nenhuma alteracao no script |
+| Navegador real, aba `Faturamento` | PASS | Aba renderizada, consulta default exibiu total/tabela e desktop sem overflow horizontal (`scrollWidth === clientWidth`) |
+| Datas opcionais | PASS | Campos vazios consultam todos os dias disponiveis, sem erro |
+| Atalhos de periodo e paginacao numerada | PASS | Padrao aplicado em Pedidos e Faturamento, sem dependencia nova |
+| `GET /api/revenue/daily` via proxy Vite, intervalo com dados do seed | PASS | `startDate=2025-07-02&endDate=2026-07-01` → `totalRevenue=6018360.60`, `totalOrders=4522`, `days[]` completo |
+| `GET /api/revenue/daily` intervalo vazio | PASS | `startDate=2030-01-01&endDate=2030-01-03` → `200`, totais e dias zerados |
+| `GET /api/revenue/daily` `startDate > endDate` | PASS | `400` com `{"error":"startDate must not be after endDate."}` |
+| Bundle final (`dist/assets/*.js`) contem `Faturamento`/`Consultar` | PASS | Confirmado via busca de string no bundle |
+| Bundle final sem `react-router`/`Redux` | PASS | Confirmado via busca de string no bundle |
+| `package.json` sem dependencia nova | PASS | Continua apenas `react`, `react-dom`, `vite`, `@vitejs/plugin-react` |
+| Escopo (`git status --short`) | PASS | Backend alterado apenas nos filtros/contrato de leitura; frontend reorganizado em `api/`, `components/`, `pages/` e `shared/`; worker, migrations e `package.json` intactos |
+
+## Modulo 007 (follow-up) — Filtros de Pedidos, datas opcionais e paginacao de dias
+
+Correcao de um entendimento anterior + extensao do modulo 007: filtros server-side em `Pedidos`, datas opcionais em `GET /api/revenue/daily`, paginacao numerada da tabela de dias do `Faturamento`, e o padrao correto de "duplo clique limpa o campo" (nao confirmacao em dois cliques de botao).
+
+### Ponto de entendimento a explicar na apresentacao
+
+"Duplo clique" aqui e literal: **dar dois cliques rapidos dentro do campo** (nao dois cliques em um botao) limpa **so aquele campo**. Os botoes `Limpar filtros`/`Limpar datas` continuam com **1 clique** normal e limpam todos os campos da secao junto. Vale a pena mostrar os dois comportamentos lado a lado na demo para deixar a diferenca clara.
+
+### Roteiro de demo (3–4 min)
+
+1. Em `Pedidos`, mostrar os novos campos de filtro acima da tabela: `Status` (Todos/created/processed), `Data inicial`, `Data final`, botoes `Filtrar` e `Limpar filtros`.
+2. Selecionar `status = processed`, clicar `Filtrar` — tabela mostra so pedidos `processed`, pagina volta para 1, contador de total reflete o filtro (chamada real ao backend, visivel na aba Network).
+3. Trocar de pagina com o filtro ainda ativo — filtro permanece aplicado.
+4. Dar **duplo clique** no campo `Status` — volta para `Todos` sozinho, sem tocar nas datas e sem refazer a busca (só ao clicar `Filtrar` de novo).
+5. Clicar `Limpar filtros` (**1 clique**) — todos os campos voltam ao padrao e a listagem completa volta.
+6. Ir para `Faturamento`, consultar um intervalo com mais de 10 dias no seed (ex.: `2025-07-02` a `2026-07-01`) — mostrar a paginacao numerada da tabela de dias (`Inicio`/`Anterior`/numeros/`Proxima`/`Fim`, mesmo padrao visual de `Pedidos`) e explicar que e paginacao 100% local (sem nova chamada HTTP).
+7. Limpar as duas datas com `Limpar datas` (**1 clique**) e consultar de novo — mostrar que agora o backend agrega **todos os dias disponiveis** em vez de dar erro ou usar um intervalo sintetico no frontend.
+8. Dar duplo clique em `Data inicial` e depois em `Data final` isoladamente — mostrar que cada um limpa só o seu próprio campo.
+
+### Referencias de codigo (follow-up)
+
+| Arquivo | O que explicar |
+| --- | --- |
+| `src/TestOrder.Api/Controllers/OrdersController.cs` | `ValidateFilters`/`BuildWhereClause` — filtros opcionais e parametrizados, sem concatenar valor de usuario na query |
+| `src/TestOrder.Api/Controllers/OrdersQueries.cs` | `BuildCountOrders`/`BuildPageOrders` recebem a clausula `WHERE` já pronta — SQL fica perto do controller, sem repositorio genérico |
+| `src/TestOrder.Api/Controllers/RevenueController.cs` | Datas agora opcionais; zero-fill só ocorre quando as duas datas são conhecidas |
+| `src/TestOrder.Web/src/pages/orders/OrdersPage.jsx` | Estado de rascunho vs. aplicado dos filtros de pedidos; presets de periodo; duplo clique limpa campo |
+| `src/TestOrder.Web/src/pages/revenue/RevenuePage.jsx` | Datas opcionais; `onDoubleClick` nas datas; paginação local da tabela de dias |
+| `src/TestOrder.Web/src/components/PageNav.jsx` / `shared/pagination.js` | Extraídos para reaproveitar o mesmo padrão visual de paginação em Pedidos e Faturamento sem duplicar JSX |
+
+### Validacoes — Modulo 007 (follow-up)
+
+| Validacao | Status | Evidencia |
+| --- | --- | --- |
+| `dotnet build TestOrder.slnx` | PASS | 0 erros |
+| `.\scripts\test.ps1` | PASS | **57/57** (46 anteriores + 11 novos) |
+| `npm run build` (frontend) | PASS | `dist/` gerado sem erros |
+| `git diff --check` | PASS | Sem erros de whitespace |
+| `package.json` (frontend) | PASS | Sem dependencia nova |
+| Escopo de backend alterado | Confirmado | Apenas `TestOrder.Api` (`OrdersController`, `OrdersQueries`, `RevenueController`, `RevenueQueries`, `ApiResponses.cs`) — nenhum arquivo de `TestOrder.OrderProcessor` ou migrations |
+
+## Modulo 007 (polish de apresentacao) — Presets em Pedidos e organizacao do frontend
+
+Ajustes finais **somente frontend + docs** antes do commit. Backend, worker, migrations e testes backend inalterados.
+
+### O que mudou
+
+- Atalhos de periodo (`Hoje` … `Ultimo ano`) tambem nos filtros de `Pedidos` — preenchem datas sem buscar; `status` preservado; busca so em `Filtrar`.
+- Frontend reorganizado em `pages/`, `components/`, `shared/`, `api/` — `App.jsx` virou shell minimo.
+- Presets e datas locais centralizados em `shared/dateRanges.js`.
+- Nota de evolucao adicionada ao modulo 003 sobre datas opcionais no faturamento (nao contradizer docs antigas).
+
+### Roteiro rapido (1 min extra na demo)
+
+1. Em `Pedidos`, clicar **30 dias** nos atalhos — datas preenchidas, status intacto, sem busca automatica.
+2. Clicar **Filtrar** — listagem filtrada pelo intervalo.
+3. Mostrar estrutura de pastas: `App.jsx` (shell) → `pages/orders` / `pages/revenue` → `shared/dateRanges.js`.
+
+### Referencias de codigo (polish)
+
+| Arquivo | O que explicar |
+| --- | --- |
+| `src/TestOrder.Web/src/App.jsx` | Shell: header, abas, `activeTab`, renderiza pagina ativa |
+| `src/TestOrder.Web/src/pages/orders/OrdersPage.jsx` | Tudo de pedidos: criacao, filtros server-side, presets, paginacao |
+| `src/TestOrder.Web/src/pages/revenue/RevenuePage.jsx` | Consulta faturamento, presets, paginacao client-side dos dias |
+| `src/TestOrder.Web/src/shared/dateRanges.js` | `DATE_PRESETS`, `getRecentRange` — compartilhado entre Pedidos e Faturamento |
+| `src/TestOrder.Web/src/components/PageNav.jsx` | Paginacao numerada reutilizada |
+| `src/TestOrder.Web/src/api/api.js` | Fetch nativo, sem service layer |
 
 Checklist completo, item a item, em [`docs/DELIVERY_CHECKLIST.md`](DELIVERY_CHECKLIST.md).

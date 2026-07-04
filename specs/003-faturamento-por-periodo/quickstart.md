@@ -3,6 +3,8 @@
 **Objetivo**: Validar `GET /api/revenue/daily` — agregação de faturamento por dia, validação de parâmetros e regressão dos módulos 001/002.
 **Contratos**: [contracts/api.md](./contracts/api.md) | **Modelo**: [data-model.md](./data-model.md)
 
+> **Nota de evolução (follow-up módulo 007):** datas opcionais em `GET /api/revenue/daily` — ausência de `startDate`/`endDate` não retorna mais `400`. Os testes `GetDailyRevenue_MissingStartDate_Returns400` / `MissingEndDate` foram substituídos por casos de limite aberto. Comportamento atual: `specs/007-tela-faturamento-periodo/` e `AI_NOTES.md`.
+
 ## Pré-requisitos
 
 - Módulos 001 e 002 operacionais (Docker, `dev-up.ps1`, `POST /api/orders` funcionando)
